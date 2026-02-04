@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | bonscanner</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: #f5f5f5;
+        color: #1a1a1a;
+        min-height: 100vh;
+        display: flex;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        width: 220px;
+        background: #fff;
+        border-right: 1px solid #eee;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        height: 100vh;
+      }
+
+      .logo {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #f5a623;
+        margin-bottom: 0.25rem;
+      }
+
+      .logo-sub {
+        font-size: 0.75rem;
+        color: #999;
+        margin-bottom: 2rem;
+      }
+
+      .nav-menu {
+        list-style: none;
+        flex: 1;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        color: #666;
+        text-decoration: none;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        transition: all 0.2s;
+      }
+
+      .nav-item:hover {
+        background: #fafafa;
+        color: #1a1a1a;
+      }
+      .nav-item.active {
+        background: #fff8f0;
+        color: #f5a623;
+        font-weight: 500;
+      }
+      .nav-icon {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
+      /* Main Content */
+      .main {
+        flex: 1;
+        margin-left: 220px;
+        min-height: 100vh;
+      }
+
+      /* Top Bar */
+      .topbar {
+        background: #fff;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .topbar h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .upload-btn {
+        background: #f5a623;
+        color: #fff;
+        border: none;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        transition: background 0.2s;
+      }
+
+      .upload-btn:hover {
+        background: #e09515;
+      }
+
+      /* Dashboard Content */
+      .content {
+        padding: 2rem;
+      }
+
+      /* Stats Cards */
+      .stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .stat-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #eee;
+      }
+
+      .stat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+      }
+
+      .stat-label {
+        font-size: 0.85rem;
+        color: #666;
+      }
+
+      .stat-icon {
+        width: 36px;
+        height: 36px;
+        background: #fff8f0;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .stat-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: #f5a623;
+        stroke-width: 2;
+        fill: none;
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 0.5rem;
+      }
+
+      .stat-change {
+        font-size: 0.8rem;
+        color: #22c55e;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+
+      /* Charts Row */
+      .charts-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .chart-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #eee;
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .chart-title {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      /* Receipts Table */
+      .table-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #eee;
+        overflow: hidden;
+      }
+
+      .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #eee;
+      }
+
+      .table-title {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .view-all {
+        color: #f5a623;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th {
+        text-align: left;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #999;
+        font-weight: 500;
+        background: #fafafa;
+      }
+
+      td {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #f5f5f5;
+        font-size: 0.9rem;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      .store-name {
+        font-weight: 500;
+      }
+      .amount {
+        color: #f5a623;
+        font-weight: 600;
+      }
+      .items-preview {
+        color: #666;
+        font-size: 0.85rem;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #999;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #999;
+      }
+
+      /* Responsive */
+      @media (max-width: 1024px) {
+        .stats-row {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .sidebar {
+          display: none;
+        }
+        .main {
+          margin-left: 0;
+        }
+        .stats-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">~/bonscanner</div>
+      <div class="logo-sub">Belegscanner</div>
+      <ul class="nav-menu">
+        <li>
+          <a href="stats.html" class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M3 3v18h18" />
+              <path d="M18 9l-5 5-4-4-3 3" />
+            </svg>
+            Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="index.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Upload
+          </a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div class="topbar">
+        <h1>Dashboard</h1>
+        <a href="index.html" class="upload-btn">+ Beleg hochladen</a>
+      </div>
+
+      <div class="content">
+        <!-- Stats Cards -->
+        <div class="stats-row" id="stats-row">
+          <div class="loading">Lade Statistiken...</div>
+        </div>
+
+        <!-- Spending Chart -->
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-header">
+              <span class="chart-title">Ausgaben pro Monat</span>
+            </div>
+            <canvas id="spending-chart" height="120"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent Receipts -->
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Letzte Belege</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Geschäft</th>
+                <th>Betrag</th>
+                <th>Artikel</th>
+              </tr>
+            </thead>
+            <tbody id="receipts-body">
+              <tr>
+                <td colspan="4" class="loading">Lade Belege...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const API_URL = "http://localhost:5000";
+      let chart = null;
+
+      async function loadStats() {
+        try {
+          const res = await fetch(`${API_URL}/stats`);
+          const data = await res.json();
+
+          document.getElementById("stats-row").innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Gesamtausgaben</span>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h6M9 15h6"/></svg></div>
+                        </div>
+                        <div class="stat-value">${data.sum.toFixed(2)} €</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Belege gescannt</span>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>
+                        </div>
+                        <div class="stat-value">${data.count}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Durchschnitt</span>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-3 3"/></svg></div>
+                        </div>
+                        <div class="stat-value">${data.average.toFixed(2)} €</div>
+                    </div>
+                `;
+
+          renderChart(data.monthly_totals || {});
+        } catch (e) {
+          document.getElementById("stats-row").innerHTML =
+            '<div class="empty-state">Fehler beim Laden</div>';
+        }
+      }
+
+      function renderChart(monthlyData) {
+        const labels = Object.keys(monthlyData);
+        const values = Object.values(monthlyData);
+
+        const ctx = document.getElementById("spending-chart").getContext("2d");
+
+        if (chart) chart.destroy();
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, "rgba(245, 166, 35, 0.3)");
+        gradient.addColorStop(1, "rgba(245, 166, 35, 0.0)");
+
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "Ausgaben (€)",
+                data: values,
+                borderColor: "#f5a623",
+                backgroundColor: gradient,
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: "#f5a623",
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { color: "#f0f0f0" },
+                ticks: { callback: (v) => v + " €" },
+              },
+              x: {
+                grid: { display: false },
+              },
+            },
+          },
+        });
+      }
+
+      async function loadReceipts() {
+        try {
+          const res = await fetch(`${API_URL}/receipts`);
+          const receipts = await res.json();
+          const tbody = document.getElementById("receipts-body");
+
+          if (receipts.length === 0) {
+            tbody.innerHTML =
+              '<tr><td colspan="4" class="empty-state">Keine Belege vorhanden</td></tr>';
+            return;
+          }
+
+          // Show only last 10
+          const recent = receipts.slice(0, 10);
+
+          tbody.innerHTML = recent
+            .map(
+              (r) => `
+                    <tr>
+                        <td>${r.date || "-"}</td>
+                        <td class="store-name">${r.store_name || "-"}</td>
+                        <td class="amount">${r.total ? r.total.toFixed(2) + " €" : "-"}</td>
+                        <td class="items-preview">${r.items && r.items.length ? r.items.map((i) => i.name).join(", ") : "-"}</td>
+                    </tr>
+                `,
+            )
+            .join("");
+        } catch (e) {
+          document.getElementById("receipts-body").innerHTML =
+            '<tr><td colspan="4" class="empty-state">Fehler beim Laden</td></tr>';
+        }
+      }
+
+      loadStats();
+      loadReceipts();
+    </script>
+  </body>
+</html>
