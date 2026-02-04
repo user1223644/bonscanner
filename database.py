@@ -132,8 +132,9 @@ def get_all_receipts():
 
 
 def get_receipt_stats():
-    """Get aggregate statistics for receipts."""
+    """Get aggregate statistics for receipts including monthly breakdown."""
     with get_db_connection() as conn:
+        # Basic stats
         row = conn.execute(
             """
             SELECT COUNT(*) AS count,
@@ -142,9 +143,48 @@ def get_receipt_stats():
             FROM receipts
             """
         ).fetchone()
-    
+
+        # Monthly totals - extract month from date field
+        monthly_rows = conn.execute(
+            """
+            SELECT date, total
+            FROM receipts
+            WHERE date IS NOT NULL AND total IS NOT NULL
+            """
+        ).fetchall()
+
+    # Aggregate by month
+    monthly_totals = {}
+    for r in monthly_rows:
+        date_str = r['date']
+        total = r['total']
+        if not date_str or total is None:
+            continue
+
+        # Parse various date formats to extract YYYY-MM
+        month_key = None
+        # DD.MM.YYYY or DD/MM/YYYY
+        match = re.match(r'(\d{1,2})[./](\d{1,2})[./](\d{4})', date_str)
+        if match:
+            day, month, year = match.groups()
+            month_key = f"{year}-{month.zfill(2)}"
+        else:
+            # YYYY-MM-DD
+            match = re.match(r'(\d{4})-(\d{2})-(\d{2})', date_str)
+            if match:
+                year, month, day = match.groups()
+                month_key = f"{year}-{month}"
+
+        if month_key:
+            monthly_totals[month_key] = monthly_totals.get(month_key, 0) + total
+
+    # Sort by month
+    sorted_monthly = dict(sorted(monthly_totals.items()))
+
     return {
         'count': row['count'] or 0,
-        'sum': row['total_sum'] or 0.0,
-        'average': row['total_avg'] or 0.0,
+        'sum': round(row['total_sum'] or 0.0, 2),
+        'average': round(row['total_avg'] or 0.0, 2),
+        'monthly_totals': sorted_monthly,
     }
+

@@ -41,6 +41,23 @@
         color: #f5a623;
       }
 
+      .nav-links {
+        display: flex;
+        gap: 1.5rem;
+      }
+      .nav-links a {
+        color: #666;
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .nav-links a:hover {
+        color: #f5a623;
+      }
+      .nav-links a.active {
+        color: #f5a623;
+        font-weight: 500;
+      }
+
       .container {
         max-width: 700px;
         margin: 0 auto;
@@ -222,7 +239,11 @@
   </head>
   <body>
     <nav>
-      <span class="logo">~/bonscanner</span>
+      <a href="index.html" class="logo">~/bonscanner</a>
+      <div class="nav-links">
+        <a href="index.html" class="active">Upload</a>
+        <a href="stats.html">Statistiken</a>
+      </div>
     </nav>
 
     <div class="container">
