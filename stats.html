@@ -198,7 +198,7 @@
       /* Charts Row */
       .charts-row {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: 2fr 1fr;
         gap: 1.5rem;
         margin-bottom: 2rem;
       }
@@ -309,6 +309,82 @@
         .stats-row {
           grid-template-columns: 1fr 1fr;
         }
+        .charts-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .category-legend {
+        margin-top: 1rem;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        font-size: 0.85rem;
+      }
+
+      .legend-color {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+      }
+
+      .legend-label {
+        display: flex;
+        align-items: center;
+        flex: 1;
+      }
+
+      .legend-value {
+        color: #666;
+      }
+
+      .category-total {
+        text-align: center;
+        margin-top: 0.5rem;
+      }
+
+      .category-total-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1a1a1a;
+      }
+
+      .category-total-label {
+        font-size: 0.75rem;
+        color: #999;
+        text-transform: uppercase;
+      }
+
+      /* Category Tags */
+      .category-tag {
+        display: inline-block;
+        background: #fff8f0;
+        color: #f5a623;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-right: 0.25rem;
+        cursor: pointer;
+      }
+
+      .category-tag.none {
+        background: #f5f5f5;
+        color: #999;
+      }
+
+      .category-input {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #f5a623;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        width: 100px;
+        outline: none;
       }
 
       @media (max-width: 768px) {
@@ -371,7 +447,14 @@
             <div class="chart-header">
               <span class="chart-title">Ausgaben pro Monat</span>
             </div>
-            <canvas id="spending-chart" height="120"></canvas>
+            <canvas id="spending-chart" height="180"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <span class="chart-title">Ausgaben nach Kategorie</span>
+            </div>
+            <canvas id="category-chart" height="180"></canvas>
+            <div class="category-legend" id="category-legend"></div>
           </div>
         </div>
 
@@ -385,8 +468,8 @@
               <tr>
                 <th>Datum</th>
                 <th>Geschäft</th>
+                <th>Kategorie</th>
                 <th>Betrag</th>
-                <th>Artikel</th>
               </tr>
             </thead>
             <tbody id="receipts-body">
@@ -401,7 +484,18 @@
 
     <script>
       const API_URL = "http://localhost:5000";
-      let chart = null;
+      let spendingChart = null;
+      let categoryChart = null;
+      const CATEGORY_COLORS = [
+        "#f5a623",
+        "#4ade80",
+        "#60a5fa",
+        "#f472b6",
+        "#a78bfa",
+        "#fbbf24",
+        "#34d399",
+        "#818cf8",
+      ];
 
       async function loadStats() {
         try {
@@ -432,26 +526,27 @@
                     </div>
                 `;
 
-          renderChart(data.monthly_totals || {});
+          renderSpendingChart(data.monthly_totals || {});
+          renderCategoryChart(data.category_totals || {});
         } catch (e) {
           document.getElementById("stats-row").innerHTML =
             '<div class="empty-state">Fehler beim Laden</div>';
         }
       }
 
-      function renderChart(monthlyData) {
+      function renderSpendingChart(monthlyData) {
         const labels = Object.keys(monthlyData);
         const values = Object.values(monthlyData);
 
         const ctx = document.getElementById("spending-chart").getContext("2d");
 
-        if (chart) chart.destroy();
+        if (spendingChart) spendingChart.destroy();
 
         const gradient = ctx.createLinearGradient(0, 0, 0, 300);
         gradient.addColorStop(0, "rgba(245, 166, 35, 0.3)");
         gradient.addColorStop(1, "rgba(245, 166, 35, 0.0)");
 
-        chart = new Chart(ctx, {
+        spendingChart = new Chart(ctx, {
           type: "line",
           data: {
             labels: labels,
@@ -486,6 +581,51 @@
         });
       }
 
+      function renderCategoryChart(categoryData) {
+        const labels = Object.keys(categoryData);
+        const values = Object.values(categoryData);
+        const total = values.reduce((a, b) => a + b, 0);
+
+        const ctx = document.getElementById("category-chart").getContext("2d");
+
+        if (categoryChart) categoryChart.destroy();
+
+        categoryChart = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                data: values,
+                backgroundColor: CATEGORY_COLORS.slice(0, labels.length),
+                borderWidth: 0,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            cutout: "65%",
+            plugins: {
+              legend: { display: false },
+            },
+          },
+        });
+
+        // Render legend
+        const legendEl = document.getElementById("category-legend");
+        legendEl.innerHTML = labels
+          .map((label, i) => {
+            const pct = total > 0 ? Math.round((values[i] / total) * 100) : 0;
+            return `
+            <div class="legend-item">
+              <span class="legend-label"><span class="legend-color" style="background: ${CATEGORY_COLORS[i]}"></span>${label}</span>
+              <span class="legend-value">${pct}%</span>
+            </div>
+          `;
+          })
+          .join("");
+      }
+
       async function loadReceipts() {
         try {
           const res = await fetch(`${API_URL}/receipts`);
@@ -498,7 +638,6 @@
             return;
           }
 
-          // Show only last 10
           const recent = receipts.slice(0, 10);
 
           tbody.innerHTML = recent
@@ -507,8 +646,8 @@
                     <tr>
                         <td>${r.date || "-"}</td>
                         <td class="store-name">${r.store_name || "-"}</td>
+                        <td>${renderCategoryTags(r.id, r.labels)}</td>
                         <td class="amount">${r.total ? r.total.toFixed(2) + " €" : "-"}</td>
-                        <td class="items-preview">${r.items && r.items.length ? r.items.map((i) => i.name).join(", ") : "-"}</td>
                     </tr>
                 `,
             )
@@ -517,6 +656,43 @@
           document.getElementById("receipts-body").innerHTML =
             '<tr><td colspan="4" class="empty-state">Fehler beim Laden</td></tr>';
         }
+      }
+
+      function renderCategoryTags(id, labels) {
+        if (!labels || labels.length === 0) {
+          return `<span class="category-tag none" onclick="editCategory(${id}, this)">+ Kategorie</span>`;
+        }
+        return (
+          labels.map((l) => `<span class="category-tag">${l}</span>`).join("") +
+          `<span class="category-tag none" onclick="editCategory(${id}, this)">+</span>`
+        );
+      }
+
+      async function editCategory(id, el) {
+        const input = document.createElement("input");
+        input.className = "category-input";
+        input.placeholder = "Kategorie...";
+        el.replaceWith(input);
+        input.focus();
+
+        input.addEventListener("keydown", async (e) => {
+          if (e.key === "Enter" && input.value.trim()) {
+            const newLabel = input.value.trim();
+            const res = await fetch(`${API_URL}/receipts/${id}/labels`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ labels: [newLabel] }),
+            });
+            if (res.ok) {
+              loadReceipts();
+              loadStats();
+            }
+          } else if (e.key === "Escape") {
+            loadReceipts();
+          }
+        });
+
+        input.addEventListener("blur", () => loadReceipts());
       }
 
       loadStats();

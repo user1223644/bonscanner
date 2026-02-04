@@ -10,7 +10,10 @@ from flask_cors import CORS
 import pytesseract
 from PIL import Image
 
-from database import init_db, save_receipt, get_all_receipts, get_receipt_stats
+from database import (
+    init_db, save_receipt, get_all_receipts, get_receipt_stats,
+    get_all_labels, update_receipt_labels
+)
 from extractor import extract_receipt_data
 
 app = Flask(__name__)
@@ -27,6 +30,12 @@ def upload_receipt():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
+    # Get labels from form data
+    labels = request.form.getlist('labels')
+    if not labels and request.form.get('labels'):
+        # Handle comma-separated labels
+        labels = [l.strip() for l in request.form.get('labels').split(',') if l.strip()]
+
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
             file.save(tmp.name)
@@ -35,7 +44,8 @@ def upload_receipt():
             os.unlink(tmp.name)
 
         result = extract_receipt_data(text)
-        save_receipt(result)
+        result['labels'] = labels
+        save_receipt(result, labels=labels)
         return jsonify(result)
 
     except Exception as e:
@@ -52,6 +62,21 @@ def scan_receipt():
 def list_receipts():
     """List all stored receipts."""
     return jsonify(get_all_receipts())
+
+
+@app.route('/receipts/<int:receipt_id>/labels', methods=['PATCH'])
+def patch_receipt_labels(receipt_id):
+    """Update labels for a specific receipt."""
+    data = request.get_json()
+    labels = data.get('labels', [])
+    update_receipt_labels(receipt_id, labels)
+    return jsonify({'success': True, 'labels': labels})
+
+
+@app.route('/labels', methods=['GET'])
+def list_labels():
+    """Get all unique labels."""
+    return jsonify(get_all_labels())
 
 
 @app.route('/stats', methods=['GET'])
@@ -71,3 +96,4 @@ init_db()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
