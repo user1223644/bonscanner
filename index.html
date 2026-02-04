@@ -3,16 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>bonscanner</title>
+    <title>Hochladen | Bonscanner</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      if (localStorage.getItem("theme") === "dark")
+        document.documentElement.setAttribute("data-theme", "dark");
+    </script>
     <style>
       * {
         box-sizing: border-box;
         margin: 0;
         padding: 0;
+      }
+
+      :root {
+        --bg-primary: #f5f5f5;
+        --bg-card: #fff;
+        --bg-hover: #fafafa;
+        --text-primary: #1a1a1a;
+        --text-secondary: #666;
+        --text-muted: #999;
+        --border-color: #eee;
+        --accent: #f5a623;
+        --accent-bg: #fff8f0;
+      }
+
+      [data-theme="dark"] {
+        --bg-primary: #0d1117;
+        --bg-card: #161b22;
+        --bg-hover: #21262d;
+        --text-primary: #e6edf3;
+        --text-secondary: #8b949e;
+        --text-muted: #6e7681;
+        --border-color: #30363d;
+        --accent: #f5a623;
+        --accent-bg: rgba(245, 166, 35, 0.15);
       }
 
       body {
@@ -21,94 +49,139 @@
           -apple-system,
           BlinkMacSystemFont,
           sans-serif;
-        background: #fafafa;
-        color: #1a1a1a;
+        background: var(--bg-primary);
+        color: var(--text-primary);
         min-height: 100vh;
+        display: flex;
       }
 
-      nav {
+      /* Sidebar */
+      .sidebar {
+        width: 220px;
+        background: var(--bg-card);
+        border-right: 1px solid var(--border-color);
+        padding: 1.5rem;
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem 2rem;
-        background: #fff;
-        border-bottom: 1px solid #eee;
+        flex-direction: column;
+        position: fixed;
+        height: 100vh;
       }
 
       .logo {
-        font-weight: 600;
-        font-size: 1rem;
-        color: #f5a623;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--accent);
+        margin-bottom: 0.25rem;
+      }
+      .logo-sub {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-bottom: 2rem;
       }
 
-      .nav-links {
-        display: flex;
-        gap: 1.5rem;
+      .nav-menu {
+        list-style: none;
+        flex: 1;
       }
-      .nav-links a {
-        color: #666;
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        color: var(--text-secondary);
         text-decoration: none;
         font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        transition: all 0.2s;
       }
-      .nav-links a:hover {
-        color: #f5a623;
+      .nav-item:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
       }
-      .nav-links a.active {
-        color: #f5a623;
+      .nav-item.active {
+        background: var(--accent-bg);
+        color: var(--accent);
         font-weight: 500;
       }
+      .nav-icon {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
 
-      .container {
-        max-width: 700px;
-        margin: 0 auto;
-        padding: 3rem 2rem;
+      .theme-toggle {
+        background: var(--bg-hover);
+        border: none;
+        padding: 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        margin-top: auto;
+      }
+      .theme-toggle:hover {
+        background: var(--border-color);
+      }
+      .theme-toggle svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+      }
+
+      /* Main Content */
+      .main {
+        flex: 1;
+        margin-left: 220px;
+        min-height: 100vh;
+        padding: 2rem;
       }
 
       h1 {
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: 1.5rem;
+        font-weight: 600;
         margin-bottom: 2rem;
-        color: #1a1a1a;
       }
 
       .upload-area {
-        background: #fff;
-        border: 2px dashed #ddd;
+        background: var(--bg-card);
+        border: 2px dashed var(--border-color);
         border-radius: 8px;
         padding: 4rem 2rem;
         text-align: center;
         cursor: pointer;
         transition: all 0.2s;
+        max-width: 600px;
       }
-
       .upload-area:hover {
-        border-color: #f5a623;
+        border-color: var(--accent);
       }
-
       .upload-area.dragover {
-        border-color: #f5a623;
-        background: #fffbf5;
+        border-color: var(--accent);
+        background: var(--accent-bg);
       }
-
       .upload-icon {
         font-size: 2rem;
         margin-bottom: 1rem;
-        color: #f5a623;
+        color: var(--accent);
       }
-
       .upload-text {
         font-weight: 500;
-        color: #1a1a1a;
         margin-bottom: 0.5rem;
       }
-
       .upload-hint {
         font-size: 0.8rem;
-        color: #999;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
-
       #file-input {
         display: none;
       }
@@ -116,16 +189,15 @@
       .preview-container {
         display: none;
         margin-top: 1.5rem;
-        background: #fff;
-        border: 1px solid #eee;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         padding: 1rem;
+        max-width: 600px;
       }
-
       .preview-container.active {
         display: block;
       }
-
       .preview-img {
         max-width: 100%;
         max-height: 250px;
@@ -137,66 +209,59 @@
       .results {
         display: none;
         margin-top: 2rem;
+        max-width: 600px;
       }
-
       .results.active {
         display: block;
       }
-
       .result-section {
-        background: #fff;
-        border: 1px solid #eee;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         padding: 1.25rem;
         margin-bottom: 1rem;
       }
-
       .result-section h3 {
         font-size: 0.8rem;
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: #f5a623;
+        color: var(--accent);
         margin-bottom: 0.75rem;
       }
-
       .result-value {
         font-size: 1.1rem;
         font-weight: 600;
-        color: #1a1a1a;
       }
 
       .items-list {
         list-style: none;
       }
-
       .items-list li {
         display: flex;
         justify-content: space-between;
         padding: 0.6rem 0;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border-color);
         font-size: 0.95rem;
       }
-
       .items-list li:last-child {
         border-bottom: none;
       }
-
       .item-price {
-        color: #f5a623;
+        color: var(--accent);
         font-weight: 600;
       }
 
       .raw-text {
-        background: #fafafa;
+        background: var(--bg-hover);
         padding: 1rem;
         border-radius: 4px;
-        font-family: "SF Mono", Monaco, monospace;
+        font-family: monospace;
         font-size: 0.8rem;
         white-space: pre-wrap;
         max-height: 180px;
         overflow-y: auto;
-        color: #666;
+        color: var(--text-secondary);
         line-height: 1.5;
       }
 
@@ -204,28 +269,24 @@
         text-align: center;
         padding: 2rem;
       }
-
       .spinner {
         width: 32px;
         height: 32px;
-        border: 3px solid #eee;
-        border-top-color: #f5a623;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--accent);
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
         margin: 0 auto 1rem;
       }
-
       @keyframes spin {
         to {
           transform: rotate(360deg);
         }
       }
-
       .loading-text {
-        color: #666;
+        color: var(--text-secondary);
         font-size: 0.9rem;
       }
-
       .error {
         background: #fff5f5;
         border: 1px solid #ffdddd;
@@ -238,98 +299,140 @@
 
       /* Label Input */
       .label-section {
-        background: #fff;
-        border: 1px solid #eee;
+        display: none;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         padding: 1.25rem;
         margin-top: 1.5rem;
+        max-width: 600px;
       }
-
+      .label-section.active {
+        display: block;
+      }
       .label-section h3 {
         font-size: 0.8rem;
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: #f5a623;
+        color: var(--accent);
         margin-bottom: 0.75rem;
       }
-
       .label-input-wrapper {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
         align-items: center;
       }
-
       .label-input {
         flex: 1;
         min-width: 150px;
         padding: 0.5rem 0.75rem;
-        border: 1px solid #ddd;
+        border: 1px solid var(--border-color);
         border-radius: 6px;
         font-size: 0.9rem;
         outline: none;
+        background: var(--bg-card);
+        color: var(--text-primary);
       }
-
       .label-input:focus {
-        border-color: #f5a623;
+        border-color: var(--accent);
       }
-
       .label-tag {
         display: inline-flex;
         align-items: center;
         gap: 0.25rem;
-        background: #fff8f0;
-        color: #f5a623;
+        background: var(--accent-bg);
+        color: var(--accent);
         padding: 0.35rem 0.6rem;
         border-radius: 4px;
         font-size: 0.8rem;
         font-weight: 500;
       }
-
       .label-tag button {
         background: none;
         border: none;
-        color: #f5a623;
+        color: var(--accent);
         cursor: pointer;
         font-size: 1rem;
         line-height: 1;
         padding: 0;
       }
-
       .label-suggestions {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
         margin-top: 0.75rem;
       }
-
       .label-suggestion {
-        background: #f5f5f5;
+        background: var(--bg-hover);
         border: none;
         padding: 0.35rem 0.6rem;
         border-radius: 4px;
         font-size: 0.8rem;
         cursor: pointer;
         transition: background 0.2s;
+        color: var(--text-primary);
+      }
+      .label-suggestion:hover {
+        background: var(--border-color);
       }
 
-      .label-suggestion:hover {
-        background: #eee;
+      @media (max-width: 768px) {
+        .sidebar {
+          display: none;
+        }
+        .main {
+          margin-left: 0;
+        }
       }
     </style>
   </head>
   <body>
-    <nav>
-      <a href="index.html" class="logo">~/bonscanner</a>
-      <div class="nav-links">
-        <a href="index.html" class="active">Upload</a>
-        <a href="stats.html">Statistiken</a>
-      </div>
-    </nav>
+    <aside class="sidebar">
+      <div class="logo">~/bonscanner</div>
+      <div class="logo-sub">Belegscanner</div>
+      <ul class="nav-menu">
+        <li>
+          <a href="stats.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M3 3v18h18" />
+              <path d="M18 9l-5 5-4-4-3 3" />
+            </svg>
+            Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="belege.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="8" y1="13" x2="16" y2="13" />
+              <line x1="8" y1="17" x2="16" y2="17" />
+            </svg>
+            Belege
+          </a>
+        </li>
+        <li>
+          <a href="index.html" class="nav-item active">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Hochladen
+          </a>
+        </li>
+      </ul>
+      <button class="theme-toggle" id="theme-toggle" title="Dunkel-/Hellmodus">
+        <svg viewBox="0 0 24 24" id="theme-icon">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+        </svg>
+      </button>
+    </aside>
 
-    <div class="container">
-      <h1>bonscanner</h1>
+    <main class="main">
+      <h1>Beleg hochladen</h1>
 
       <div class="upload-area" id="upload-area">
         <input type="file" id="file-input" accept="image/*" />
@@ -339,11 +442,11 @@
       </div>
 
       <div class="preview-container" id="preview-container">
-        <img src="" alt="Vorschau" class="preview-img" id="preview-img" />
+        <img id="preview-img" class="preview-img" src="" alt="Vorschau" />
       </div>
 
-      <div class="label-section" id="label-section" style="display: none">
-        <h3>Kategorien</h3>
+      <div class="label-section" id="label-section">
+        <h3>Kategorie</h3>
         <div class="label-input-wrapper">
           <div id="selected-labels"></div>
           <input
@@ -357,10 +460,13 @@
       </div>
 
       <div class="results" id="results"></div>
-    </div>
+    </main>
 
     <script>
       const API_URL = "http://localhost:5000";
+      let selectedLabels = [];
+      let availableLabels = [];
+      let pendingFile = null;
 
       const uploadArea = document.getElementById("upload-area");
       const fileInput = document.getElementById("file-input");
@@ -369,49 +475,41 @@
       const results = document.getElementById("results");
       const labelSection = document.getElementById("label-section");
       const labelInput = document.getElementById("label-input");
-      const selectedLabelsEl = document.getElementById("selected-labels");
-      const labelSuggestions = document.getElementById("label-suggestions");
+      const selectedLabelsDiv = document.getElementById("selected-labels");
+      const suggestionsDiv = document.getElementById("label-suggestions");
 
-      let selectedLabels = [];
-      let availableLabels = [];
-      let pendingFile = null;
-
-      // Load existing labels
       async function loadLabels() {
         try {
           const res = await fetch(`${API_URL}/labels`);
           availableLabels = await res.json();
-          renderSuggestions();
         } catch (e) {
-          console.error("Failed to load labels", e);
+          availableLabels = [];
         }
       }
 
       function renderSuggestions() {
-        const unused = availableLabels.filter(
-          (l) => !selectedLabels.includes(l),
-        );
-        labelSuggestions.innerHTML = unused
-          .slice(0, 8)
+        const unused = availableLabels
+          .filter((l) => !selectedLabels.includes(l))
+          .slice(0, 8);
+        suggestionsDiv.innerHTML = unused
           .map(
             (l) =>
-              `<button type="button" class="label-suggestion" onclick="addLabel('${l}')">${l}</button>`,
+              `<button class="label-suggestion" onclick="addLabel('${l}')">${l}</button>`,
           )
           .join("");
       }
 
       function renderSelectedLabels() {
-        selectedLabelsEl.innerHTML = selectedLabels
+        selectedLabelsDiv.innerHTML = selectedLabels
           .map(
             (l) =>
-              `<span class="label-tag">${l}<button type="button" onclick="removeLabel('${l}')">&times;</button></span>`,
+              `<span class="label-tag">${l}<button onclick="removeLabel('${l}')">&times;</button></span>`,
           )
           .join("");
         renderSuggestions();
       }
 
       function addLabel(label) {
-        label = label.trim();
         if (label && !selectedLabels.includes(label)) {
           selectedLabels.push(label);
           renderSelectedLabels();
@@ -427,59 +525,47 @@
       labelInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === ",") {
           e.preventDefault();
-          addLabel(labelInput.value);
+          addLabel(labelInput.value.trim());
         }
       });
 
       uploadArea.addEventListener("click", () => fileInput.click());
-
-      fileInput.addEventListener("change", (e) => {
-        if (e.target.files.length > 0) {
-          showPreview(e.target.files[0]);
-        }
-      });
-
       uploadArea.addEventListener("dragover", (e) => {
         e.preventDefault();
         uploadArea.classList.add("dragover");
       });
-
-      uploadArea.addEventListener("dragleave", () => {
-        uploadArea.classList.remove("dragover");
-      });
-
+      uploadArea.addEventListener("dragleave", () =>
+        uploadArea.classList.remove("dragover"),
+      );
       uploadArea.addEventListener("drop", (e) => {
         e.preventDefault();
         uploadArea.classList.remove("dragover");
-        if (e.dataTransfer.files.length > 0) {
-          showPreview(e.dataTransfer.files[0]);
-        }
+        if (e.dataTransfer.files.length) showPreview(e.dataTransfer.files[0]);
+      });
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length) showPreview(e.target.files[0]);
       });
 
       function showPreview(file) {
         pendingFile = file;
-        previewImg.src = URL.createObjectURL(file);
-        previewContainer.classList.add("active");
-        labelSection.style.display = "block";
-        selectedLabels = [];
-        renderSelectedLabels();
-
-        // Auto-submit after brief delay for label selection
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImg.src = e.target.result;
+          previewContainer.classList.add("active");
+          labelSection.classList.add("active");
+          selectedLabels = [];
+          renderSelectedLabels();
+          renderSuggestions();
+        };
+        reader.readAsDataURL(file);
         setTimeout(() => {
-          if (pendingFile === file) {
-            handleFile(file);
-          }
-        }, 100);
+          if (pendingFile === file) handleFile(file);
+        }, 2000);
       }
 
       async function handleFile(file) {
         results.classList.add("active");
-        results.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p class="loading-text">Bon wird gescannt...</p>
-                </div>
-            `;
+        results.innerHTML = `<div class="loading"><div class="spinner"></div><p class="loading-text">Analysiere Beleg...</p></div>`;
 
         try {
           const formData = new FormData();
@@ -490,13 +576,8 @@
             method: "POST",
             body: formData,
           });
-
           const data = await response.json();
-
-          if (data.error) {
-            throw new Error(data.error);
-          }
-
+          if (data.error) throw new Error(data.error);
           displayResults(data);
         } catch (error) {
           results.innerHTML = `<div class="error">Fehler: ${error.message}</div>`;
@@ -504,43 +585,37 @@
       }
 
       function displayResults(data) {
-        let itemsHtml = "";
-        if (data.items && data.items.length > 0) {
-          itemsHtml = `
-                    <div class="result-section">
-                        <h3>Posten</h3>
-                        <ul class="items-list">
-                            ${data.items
-                              .map(
-                                (item) => `
-                                <li>
-                                    <span>${item.name}</span>
-                                    <span class="item-price">${item.price} €</span>
-                                </li>
-                            `,
-                              )
-                              .join("")}
-                        </ul>
-                    </div>
-                `;
-        }
-
+        const itemsHtml = data.items?.length
+          ? `<div class="result-section"><h3>Artikel</h3><ul class="items-list">${data.items.map((i) => `<li><span>${i.name}</span><span class="item-price">${i.price}</span></li>`).join("")}</ul></div>`
+          : "";
         results.innerHTML = `
-                <div class="result-section">
-                    <h3>Datum</h3>
-                    <p class="result-value">${data.date || "Nicht gefunden"}</p>
-                </div>
-                <div class="result-section">
-                    <h3>Gesamtsumme</h3>
-                    <p class="result-value">${data.total || "Nicht gefunden"}</p>
-                </div>
-                ${itemsHtml}
-                <div class="result-section">
-                    <h3>OCR-Rohtext</h3>
-                    <pre class="raw-text">${data.raw_text || "Kein Text erkannt"}</pre>
-                </div>
-            `;
+          <div class="result-section"><h3>Geschäft</h3><p class="result-value">${data.store_name || "Nicht gefunden"}</p></div>
+          <div class="result-section"><h3>Datum</h3><p class="result-value">${data.date || "Nicht gefunden"}</p></div>
+          <div class="result-section"><h3>Gesamtsumme</h3><p class="result-value">${data.total || "Nicht gefunden"}</p></div>
+          ${itemsHtml}
+          <div class="result-section"><h3>OCR-Rohtext</h3><pre class="raw-text">${data.raw_text || "Kein Text erkannt"}</pre></div>
+        `;
       }
+
+      // Dark mode
+      const themeToggle = document.getElementById("theme-toggle");
+      const themeIcon = document.getElementById("theme-icon");
+      function setTheme(dark) {
+        document.documentElement.setAttribute(
+          "data-theme",
+          dark ? "dark" : "light",
+        );
+        localStorage.setItem("theme", dark ? "dark" : "light");
+        themeIcon.innerHTML = dark
+          ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+          : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+      }
+      if (localStorage.getItem("theme") === "dark") setTheme(true);
+      themeToggle.addEventListener("click", () =>
+        setTheme(
+          document.documentElement.getAttribute("data-theme") !== "dark",
+        ),
+      );
 
       loadLabels();
     </script>

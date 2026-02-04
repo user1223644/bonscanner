@@ -19,6 +19,23 @@ from extractor import extract_receipt_data
 app = Flask(__name__)
 CORS(app)
 
+def parse_labels_from_request(req):
+    """Extract labels from form data (list or comma-separated)."""
+    labels = req.form.getlist('labels')
+    if not labels and req.form.get('labels'):
+        labels = [l.strip() for l in req.form.get('labels').split(',') if l.strip()]
+    return labels
+
+
+def ocr_image_file(file_obj):
+    """Run OCR on an uploaded image file and return extracted text."""
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+        file_obj.save(tmp.name)
+        image = Image.open(tmp.name)
+        text = pytesseract.image_to_string(image, lang='deu+eng')
+        os.unlink(tmp.name)
+    return text
+
 
 @app.route('/upload', methods=['POST'])
 def upload_receipt():
@@ -30,19 +47,10 @@ def upload_receipt():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    # Get labels from form data
-    labels = request.form.getlist('labels')
-    if not labels and request.form.get('labels'):
-        # Handle comma-separated labels
-        labels = [l.strip() for l in request.form.get('labels').split(',') if l.strip()]
+    labels = parse_labels_from_request(request)
 
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-            file.save(tmp.name)
-            image = Image.open(tmp.name)
-            text = pytesseract.image_to_string(image, lang='deu+eng')
-            os.unlink(tmp.name)
-
+        text = ocr_image_file(file)
         result = extract_receipt_data(text)
         result['labels'] = labels
         save_receipt(result, labels=labels)
@@ -73,6 +81,15 @@ def patch_receipt_labels(receipt_id):
     return jsonify({'success': True, 'labels': labels})
 
 
+@app.route('/receipts/<int:receipt_id>', methods=['PATCH'])
+def patch_receipt(receipt_id):
+    """Update receipt fields."""
+    data = request.get_json()
+    from database import update_receipt
+    update_receipt(receipt_id, data)
+    return jsonify({'success': True})
+
+
 @app.route('/labels', methods=['GET'])
 def list_labels():
     """Get all unique labels."""
@@ -96,4 +113,3 @@ init_db()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-

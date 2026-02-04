@@ -18,6 +18,28 @@ def get_db_connection():
     return conn
 
 
+def json_dumps_list(value):
+    """Serialize list-like data to JSON."""
+    return json.dumps(value or [], ensure_ascii=True)
+
+
+def json_loads_list(value):
+    """Deserialize JSON list or return empty list."""
+    if not value:
+        return []
+    return json.loads(value)
+
+
+def ensure_columns(conn, columns):
+    """Add missing columns to receipts table."""
+    existing_cols = {
+        row["name"] for row in conn.execute("PRAGMA table_info(receipts)").fetchall()
+    }
+    for col, col_type in columns.items():
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE receipts ADD COLUMN {col} {col_type}")
+
+
 def init_db():
     """Initialize database and run migrations."""
     with get_db_connection() as conn:
@@ -40,9 +62,6 @@ def init_db():
             """
         )
         # Auto-migration for new columns
-        existing_cols = {
-            row["name"] for row in conn.execute("PRAGMA table_info(receipts)").fetchall()
-        }
         needed_cols = {
             "store_name": "TEXT",
             "store_location": "TEXT",
@@ -52,9 +71,7 @@ def init_db():
             "labels": "TEXT",
             "raw_text": "TEXT",
         }
-        for col, col_type in needed_cols.items():
-            if col not in existing_cols:
-                conn.execute(f"ALTER TABLE receipts ADD COLUMN {col} {col_type}")
+        ensure_columns(conn, needed_cols)
         conn.commit()
 
 
@@ -75,8 +92,8 @@ def parse_total_to_float(total):
 def save_receipt(result, labels=None):
     """Save extracted receipt data to database."""
     created_at = datetime.now(timezone.utc).isoformat()
-    items_json = json.dumps(result.get('items', []), ensure_ascii=True)
-    labels_json = json.dumps(labels or [], ensure_ascii=True)
+    items_json = json_dumps_list(result.get('items', []))
+    labels_json = json_dumps_list(labels or [])
     total_value = parse_total_to_float(result.get('total'))
 
     with get_db_connection() as conn:
@@ -107,13 +124,44 @@ def save_receipt(result, labels=None):
 
 def update_receipt_labels(receipt_id, labels):
     """Update labels for a specific receipt."""
-    labels_json = json.dumps(labels or [], ensure_ascii=True)
+    labels_json = json_dumps_list(labels or [])
     with get_db_connection() as conn:
         conn.execute(
             "UPDATE receipts SET labels = ? WHERE id = ?",
             (labels_json, receipt_id)
         )
         conn.commit()
+
+
+def update_receipt(receipt_id, updates):
+    """Update receipt fields."""
+    allowed_fields = ['store_name', 'date', 'total', 'labels']
+    set_parts = []
+    values = []
+    
+    for field in allowed_fields:
+        if field in updates:
+            if field == 'labels':
+                set_parts.append("labels = ?")
+                values.append(json_dumps_list(updates['labels'] or []))
+            elif field == 'total':
+                set_parts.append("total = ?")
+                values.append(parse_total_to_float(updates['total']))
+            else:
+                set_parts.append(f"{field} = ?")
+                values.append(updates[field])
+    
+    if not set_parts:
+        return False
+    
+    values.append(receipt_id)
+    with get_db_connection() as conn:
+        conn.execute(
+            f"UPDATE receipts SET {', '.join(set_parts)} WHERE id = ?",
+            values
+        )
+        conn.commit()
+    return True
 
 
 def get_all_receipts():
@@ -138,8 +186,8 @@ def get_all_receipts():
             'payment_method': row['payment_method'],
             'date': row['date'],
             'total': row['total'],
-            'items': json.loads(row['items']) if row['items'] else [],
-            'labels': json.loads(row['labels']) if row['labels'] else [],
+            'items': json_loads_list(row['items']),
+            'labels': json_loads_list(row['labels']),
             'raw_text': row['raw_text'],
             'created_at': row['created_at'],
         }
@@ -155,7 +203,7 @@ def get_all_labels():
     all_labels = set()
     for row in rows:
         if row['labels']:
-            labels = json.loads(row['labels'])
+            labels = json_loads_list(row['labels'])
             all_labels.update(labels)
 
     return sorted(all_labels)
@@ -212,7 +260,7 @@ def get_receipt_stats():
                 monthly_totals[month_key] = monthly_totals.get(month_key, 0) + total
 
         # Category aggregation
-        labels = json.loads(labels_json) if labels_json else []
+        labels = json_loads_list(labels_json)
         if labels:
             for label in labels:
                 category_totals[label] = category_totals.get(label, 0) + total
@@ -230,4 +278,3 @@ def get_receipt_stats():
         'monthly_totals': sorted_monthly,
         'category_totals': sorted_category,
     }
-
