@@ -94,6 +94,9 @@ def init_db():
         # Run migration to move JSON items to receipt_items table
         migrate_items_to_table(conn)
         
+        # Add placeholder items for receipts with totals but no items
+        add_placeholder_items_for_existing_receipts(conn)
+        
         conn.commit()
 
 
@@ -134,6 +137,36 @@ def migrate_items_to_table(conn):
                 """,
                 (receipt_id, name, 1.0, line_total)
             )
+    
+    conn.commit()
+
+
+def add_placeholder_items_for_existing_receipts(conn):
+    """Add placeholder items for receipts that have a total but no items in receipt_items."""
+    # Find receipts with total > 0 but no items in receipt_items
+    receipts = conn.execute(
+        """
+        SELECT r.id, r.total
+        FROM receipts r
+        LEFT JOIN receipt_items ri ON r.id = ri.receipt_id
+        WHERE r.total IS NOT NULL 
+          AND r.total > 0
+          AND ri.id IS NULL
+        """
+    ).fetchall()
+    
+    for receipt in receipts:
+        receipt_id = receipt['id']
+        total = receipt['total']
+        
+        # Add placeholder item
+        conn.execute(
+            """
+            INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
+            VALUES (?, ?, ?, ?)
+            """,
+            (receipt_id, "Unbekannte Artikel", 1.0, total)
+        )
     
     conn.commit()
 
@@ -186,10 +219,14 @@ def save_receipt(result, labels=None):
         
         # Also save items to receipt_items table
         items = result.get('items', [])
+        has_items = False
+        
         for item in items:
             name = item.get('name', '')
             if not name:
                 continue
+            
+            has_items = True
             
             # Parse price
             price_str = item.get('price', '')
@@ -203,6 +240,17 @@ def save_receipt(result, labels=None):
                 VALUES (?, ?, ?, ?)
                 """,
                 (receipt_id, name, 1.0, line_total)
+            )
+        
+        # If no items were extracted but we have a total, create a placeholder item
+        # This prevents the total from being lost when users add items manually
+        if not has_items and total_value and total_value > 0:
+            conn.execute(
+                """
+                INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
+                VALUES (?, ?, ?, ?)
+                """,
+                (receipt_id, "Unbekannte Artikel", 1.0, total_value)
             )
         
         conn.commit()
