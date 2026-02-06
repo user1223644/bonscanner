@@ -234,6 +234,120 @@
         color: var(--text-muted);
       }
 
+      .detail-btn {
+        background: none;
+        border: none;
+        padding: 0.25rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+      .detail-btn:hover {
+        background: var(--bg-hover);
+        color: var(--accent);
+      }
+      .detail-btn svg {
+        transition: transform 0.2s;
+      }
+
+      .detail-row {
+        background: var(--bg-hover);
+      }
+      .detail-content {
+        padding: 1rem;
+        font-size: 0.9rem;
+      }
+
+      .detail-section {
+        margin-bottom: 1rem;
+      }
+      .detail-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+      }
+      .add-item-btn {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 0.35rem 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+      .add-item-btn:hover {
+        opacity: 0.9;
+      }
+
+      .add-item-form {
+        background: var(--bg-card);
+        padding: 1rem;
+        border-radius: 6px;
+        margin-top: 0.5rem;
+        border: 1px solid var(--border-color);
+      }
+      .item-input {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        padding: 0.5rem;
+        border-radius: 4px;
+        margin-right: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+      .item-input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .save-btn,
+      .cancel-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+      .save-btn {
+        background: var(--accent);
+        color: white;
+        margin-right: 0.5rem;
+      }
+      .save-btn:hover {
+        opacity: 0.9;
+      }
+      .cancel-btn {
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+      }
+      .cancel-btn:hover {
+        background: var(--border-color);
+      }
+
+      .delete-item-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 1.5rem;
+        line-height: 1;
+        padding: 0.25rem 0.5rem;
+        transition: color 0.2s;
+      }
+      .delete-item-btn:hover {
+        color: #ef4444;
+      }
+
+      .items-list {
+        margin-top: 0.5rem;
+      }
+
       @media (max-width: 768px) {
         .sidebar {
           display: none;
@@ -270,7 +384,7 @@
           </a>
         </li>
         <li>
-          <a href="index.html" class="nav-item">
+          <a href="hochladen.html" class="nav-item">
             <svg class="nav-icon" viewBox="0 0 24 24">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
@@ -296,13 +410,14 @@
             <tr>
               <th>Datum</th>
               <th>Geschäft</th>
+              <th></th>
               <th>Kategorie</th>
               <th>Betrag</th>
             </tr>
           </thead>
           <tbody id="receipts-body">
             <tr>
-              <td colspan="4" class="empty-state">Lade Belege...</td>
+              <td colspan="5" class="empty-state">Lade Belege...</td>
             </tr>
           </tbody>
         </table>
@@ -342,25 +457,167 @@
 
           if (receipts.length === 0) {
             tbody.innerHTML =
-              '<tr><td colspan="4" class="empty-state">Keine Belege vorhanden</td></tr>';
+              '<tr><td colspan="5" class="empty-state">Keine Belege vorhanden</td></tr>';
             return;
           }
 
           tbody.innerHTML = receipts
             .map(
               (r) => `
-            <tr data-id="${r.id}">
+            <tr data-id="${r.id}" class="receipt-row">
               <td><span class="editable" onclick="editField(${r.id}, 'date', this)">${r.date || "-"}</span></td>
               <td><span class="editable" onclick="editField(${r.id}, 'store_name', this)">${r.store_name || "-"}</span></td>
+              <td style="text-align: center;">
+                <button class="detail-btn" onclick="toggleDetails(${r.id}, event)" title="Details anzeigen">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </td>
               <td>${renderCategories(r.id, r.labels)}</td>
-              <td><span class="editable" onclick="editField(${r.id}, 'total', this)">${r.total ? r.total.toFixed(2) + " €" : "-"}</span></td>
+              <td><span class="editable" onclick="editField(${r.id}, 'total', this)">${r.total ? r.total.toFixed(2) + " \u20ac" : "-"}</span></td>
+            </tr>
+            <tr id="details-${r.id}" class="detail-row" style="display: none;">
+              <td colspan="5">
+                <div class="detail-content">
+                  <div class="detail-section">
+                    <div class="detail-header">
+                      <strong>Artikel:</strong>
+                      <button class="add-item-btn" onclick="showAddItemForm(${r.id})" title="Artikel hinzufügen">+ Artikel</button>
+                    </div>
+                    <div id="items-${r.id}" class="items-list">
+                      ${renderItemsDetailEditable(r.id, r.items)}
+                    </div>
+                    <div id="add-item-form-${r.id}" class="add-item-form" style="display: none;">
+                      <input type="text" id="item-name-${r.id}" placeholder="Artikelname" class="item-input" />
+                      <input type="number" id="item-price-${r.id}" placeholder="Preis" step="0.01" class="item-input" />
+                      <button onclick="saveNewItem(${r.id})" class="save-btn">Speichern</button>
+                      <button onclick="cancelAddItem(${r.id})" class="cancel-btn">Abbrechen</button>
+                    </div>
+                  </div>
+                </div>
+              </td>
             </tr>
           `,
             )
             .join("");
         } catch (e) {
           document.getElementById("receipts-body").innerHTML =
-            '<tr><td colspan="4" class="empty-state">Fehler beim Laden</td></tr>';
+            '<tr><td colspan="5" class="empty-state">Fehler beim Laden</td></tr>';
+        }
+      }
+
+      function renderItemsDetail(items) {
+        if (!items || items.length === 0) {
+          return '<span style="color: var(--text-muted);">Keine Artikel</span>';
+        }
+        return (
+          '<div style="margin-top: 0.5rem;">' +
+          items
+            .map(
+              (item) =>
+                `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--border-color);"><span style="font-weight: 500;">${item.name || "-"}</span> <span style="color: var(--text-muted); float: right;">${item.price || ""}</span></div>`,
+            )
+            .join("") +
+          "</div>"
+        );
+      }
+
+      function renderItemsDetailEditable(receiptId, items) {
+        if (!items || items.length === 0) {
+          return '<span style="color: var(--text-muted);">Keine Artikel</span>';
+        }
+        return (
+          '<div style="margin-top: 0.5rem;">' +
+          items
+            .map(
+              (item) =>
+                `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 500;">${item.name || "-"}</span>
+                <div>
+                  <span style="color: var(--text-muted); margin-right: 1rem;">${item.price || ""}</span>
+                  <button class="delete-item-btn" onclick="deleteItem(${receiptId}, ${item.id})" title="Löschen">×</button>
+                </div>
+              </div>`,
+            )
+            .join("") +
+          "</div>"
+        );
+      }
+
+      function showAddItemForm(receiptId) {
+        const form = document.getElementById(`add-item-form-${receiptId}`);
+        form.style.display = "block";
+        document.getElementById(`item-name-${receiptId}`).focus();
+      }
+
+      function cancelAddItem(receiptId) {
+        const form = document.getElementById(`add-item-form-${receiptId}`);
+        form.style.display = "none";
+        document.getElementById(`item-name-${receiptId}`).value = "";
+        document.getElementById(`item-price-${receiptId}`).value = "";
+      }
+
+      async function saveNewItem(receiptId) {
+        const name = document
+          .getElementById(`item-name-${receiptId}`)
+          .value.trim();
+        const price = document.getElementById(`item-price-${receiptId}`).value;
+
+        if (!name) {
+          alert("Bitte Artikelname eingeben");
+          return;
+        }
+
+        try {
+          const res = await fetch(`${API_URL}/receipts/${receiptId}/items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, price: parseFloat(price) || 0 }),
+          });
+
+          if (res.ok) {
+            cancelAddItem(receiptId);
+            await loadReceipts(); // Reload to show updated total
+          }
+        } catch (e) {
+          alert("Fehler beim Hinzufügen des Artikels");
+        }
+      }
+
+      async function deleteItem(receiptId, itemId) {
+        if (!confirm("Artikel wirklich löschen?")) {
+          return;
+        }
+
+        try {
+          const res = await fetch(
+            `${API_URL}/receipts/${receiptId}/items/${itemId}`,
+            {
+              method: "DELETE",
+            },
+          );
+
+          if (res.ok) {
+            await loadReceipts(); // Reload to show updated total
+          }
+        } catch (e) {
+          alert("Fehler beim Löschen des Artikels");
+        }
+      }
+
+      function toggleDetails(id, event) {
+        event.stopPropagation();
+        const detailRow = document.getElementById(`details-${id}`);
+        const btn = event.currentTarget;
+        const svg = btn.querySelector("svg");
+
+        if (detailRow.style.display === "none") {
+          detailRow.style.display = "table-row";
+          svg.style.transform = "rotate(180deg)";
+        } else {
+          detailRow.style.display = "none";
+          svg.style.transform = "rotate(0deg)";
         }
       }
 

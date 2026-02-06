@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hochladen | Bonscanner</title>
+    <title>Bonscanner - Manage your expenses effortlessly</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
@@ -20,26 +20,28 @@
       }
 
       :root {
-        --bg-primary: #f5f5f5;
+        --bg-primary: #ffffff;
+        --bg-secondary: #fafafa;
         --bg-card: #fff;
-        --bg-hover: #fafafa;
         --text-primary: #1a1a1a;
         --text-secondary: #666;
         --text-muted: #999;
         --border-color: #eee;
         --accent: #f5a623;
+        --accent-hover: #e09515;
         --accent-bg: #fff8f0;
       }
 
       [data-theme="dark"] {
         --bg-primary: #0d1117;
+        --bg-secondary: #161b22;
         --bg-card: #161b22;
-        --bg-hover: #21262d;
         --text-primary: #e6edf3;
         --text-secondary: #8b949e;
         --text-muted: #6e7681;
         --border-color: #30363d;
         --accent: #f5a623;
+        --accent-hover: #e09515;
         --accent-bg: rgba(245, 166, 35, 0.15);
       }
 
@@ -51,555 +53,605 @@
           sans-serif;
         background: var(--bg-primary);
         color: var(--text-primary);
-        min-height: 100vh;
-        display: flex;
+        line-height: 1.6;
       }
 
-      /* Sidebar */
-      .sidebar {
-        width: 220px;
-        background: var(--bg-card);
-        border-right: 1px solid var(--border-color);
-        padding: 1.5rem;
+      /* Navbar */
+      .navbar {
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+        padding: 1rem 0;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 2rem;
         display: flex;
-        flex-direction: column;
-        position: fixed;
-        height: 100vh;
+        justify-content: space-between;
+        align-items: center;
       }
 
       .logo {
+        font-size: 1.25rem;
         font-weight: 700;
-        font-size: 1.1rem;
         color: var(--accent);
-        margin-bottom: 0.25rem;
-      }
-      .logo-sub {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-bottom: 2rem;
+        text-decoration: none;
       }
 
-      .nav-menu {
-        list-style: none;
-        flex: 1;
-      }
-
-      .nav-item {
+      .nav-links {
         display: flex;
+        gap: 2rem;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
+        list-style: none;
+      }
+
+      .nav-links a {
         color: var(--text-secondary);
         text-decoration: none;
         font-size: 0.9rem;
-        margin-bottom: 0.25rem;
-        transition: all 0.2s;
+        transition: color 0.2s;
       }
-      .nav-item:hover {
-        background: var(--bg-hover);
+
+      .nav-links a:hover {
         color: var(--text-primary);
       }
-      .nav-item.active {
-        background: var(--accent-bg);
-        color: var(--accent);
-        font-weight: 500;
-      }
-      .nav-icon {
-        width: 18px;
-        height: 18px;
-        stroke: currentColor;
-        stroke-width: 2;
-        fill: none;
+
+      .nav-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
       }
 
-      .theme-toggle {
-        background: var(--bg-hover);
+      .btn-login {
+        background: var(--accent);
+        color: white;
+        padding: 0.5rem 1.25rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: background 0.2s;
+      }
+
+      .btn-login:hover {
+        background: var(--accent-hover);
+      }
+
+      .theme-toggle-btn {
+        background: none;
         border: none;
-        padding: 0.75rem;
-        border-radius: 8px;
         cursor: pointer;
+        color: var(--text-secondary);
+        padding: 0.5rem;
         display: flex;
         align-items: center;
-        justify-content: center;
-        color: var(--text-secondary);
-        margin-top: auto;
       }
-      .theme-toggle:hover {
-        background: var(--border-color);
-      }
-      .theme-toggle svg {
-        width: 18px;
-        height: 18px;
+
+      .theme-toggle-btn svg {
+        width: 20px;
+        height: 20px;
         stroke: currentColor;
         stroke-width: 2;
         fill: none;
       }
 
-      /* Main Content */
-      .main {
-        flex: 1;
-        margin-left: 220px;
-        min-height: 100vh;
-        padding: 2rem;
+      /* Hero Section */
+      .hero {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 5rem 2rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+        align-items: center;
       }
 
-      h1 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin-bottom: 2rem;
+      .hero-content h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        line-height: 1.1;
+        margin-bottom: 1.5rem;
       }
 
-      .upload-area {
-        background: var(--bg-card);
-        border: 2px dashed var(--border-color);
-        border-radius: 8px;
-        padding: 4rem 2rem;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s;
-        max-width: 600px;
-      }
-      .upload-area:hover {
-        border-color: var(--accent);
-      }
-      .upload-area.dragover {
-        border-color: var(--accent);
-        background: var(--accent-bg);
-      }
-      .upload-icon {
-        font-size: 2rem;
-        margin-bottom: 1rem;
+      .hero-content .highlight {
         color: var(--accent);
       }
-      .upload-text {
-        font-weight: 500;
-        margin-bottom: 0.5rem;
-      }
-      .upload-hint {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-      #file-input {
-        display: none;
+
+      .hero-content p {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        margin-bottom: 2rem;
+        line-height: 1.8;
       }
 
-      .preview-container {
-        display: none;
-        margin-top: 1.5rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
+      .hero-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 0.75rem 1.75rem;
         border-radius: 8px;
-        padding: 1rem;
-        max-width: 600px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
       }
-      .preview-container.active {
-        display: block;
+
+      .btn-primary {
+        background: var(--accent);
+        color: white;
       }
-      .preview-img {
-        max-width: 100%;
-        max-height: 250px;
-        border-radius: 4px;
-        display: block;
+
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--accent);
+      }
+
+      .hero-visual {
+        background: var(--bg-card);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      }
+
+      .chart-preview {
+        width: 100%;
+        height: 300px;
+        background: linear-gradient(135deg, #fff8f0 0%, #ffffff 100%);
+        border-radius: 12px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      [data-theme="dark"] .chart-preview {
+        background: linear-gradient(
+          135deg,
+          rgba(245, 166, 35, 0.1) 0%,
+          #161b22 100%
+        );
+      }
+
+      .chart-line {
+        position: absolute;
+        bottom: 20%;
+        left: 10%;
+        right: 10%;
+        height: 60%;
+      }
+
+      .chart-line svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Badge */
+      .badge {
+        display: inline-block;
+        background: var(--accent-bg);
+        color: var(--accent);
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+      }
+
+      /* How it works Section */
+      .how-it-works {
+        background: var(--bg-secondary);
+        padding: 5rem 2rem;
+      }
+
+      .section-container {
+        max-width: 1200px;
         margin: 0 auto;
       }
 
-      .results {
-        display: none;
-        margin-top: 2rem;
-        max-width: 600px;
+      .section-header {
+        text-align: center;
+        margin-bottom: 4rem;
       }
-      .results.active {
-        display: block;
-      }
-      .result-section {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 1.25rem;
+
+      .section-header h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
         margin-bottom: 1rem;
       }
-      .result-section h3 {
-        font-size: 0.8rem;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--accent);
-        margin-bottom: 0.75rem;
-      }
-      .result-value {
+
+      .section-header p {
         font-size: 1.1rem;
-        font-weight: 600;
-      }
-
-      .items-list {
-        list-style: none;
-      }
-      .items-list li {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.6rem 0;
-        border-bottom: 1px solid var(--border-color);
-        font-size: 0.95rem;
-      }
-      .items-list li:last-child {
-        border-bottom: none;
-      }
-      .item-price {
-        color: var(--accent);
-        font-weight: 600;
-      }
-
-      .raw-text {
-        background: var(--bg-hover);
-        padding: 1rem;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 0.8rem;
-        white-space: pre-wrap;
-        max-height: 180px;
-        overflow-y: auto;
         color: var(--text-secondary);
-        line-height: 1.5;
       }
 
-      .loading {
-        text-align: center;
-        padding: 2rem;
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 3rem;
       }
-      .spinner {
+
+      .step {
+        text-align: center;
+      }
+
+      .step-icon {
+        width: 64px;
+        height: 64px;
+        background: var(--accent-bg);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+      }
+
+      .step-icon svg {
         width: 32px;
         height: 32px;
-        border: 3px solid var(--border-color);
-        border-top-color: var(--accent);
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-        margin: 0 auto 1rem;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      .loading-text {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-      }
-      .error {
-        background: #fff5f5;
-        border: 1px solid #ffdddd;
-        color: #cc3333;
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-        font-size: 0.9rem;
+        stroke: var(--accent);
+        stroke-width: 2;
+        fill: none;
       }
 
-      /* Label Input */
-      .label-section {
-        display: none;
+      .step h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
+
+      .step p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+
+      /* Try it Section */
+      .try-it {
+        padding: 5rem 2rem;
+      }
+
+      .try-it-container {
+        max-width: 800px;
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      .try-it h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+      }
+
+      .try-it p {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        margin-bottom: 3rem;
+      }
+
+      .upload-demo {
         background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 1.25rem;
-        margin-top: 1.5rem;
-        max-width: 600px;
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 4rem 2rem;
+        cursor: pointer;
+        transition: all 0.2s;
       }
-      .label-section.active {
-        display: block;
+
+      .upload-demo:hover {
+        border-color: var(--accent);
       }
-      .label-section h3 {
-        font-size: 0.8rem;
-        font-weight: 500;
+
+      .upload-demo-icon {
+        font-size: 3rem;
+        color: var(--accent);
+        margin-bottom: 1rem;
+      }
+
+      .upload-demo h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .upload-demo p {
+        color: var(--text-muted);
+        font-size: 0.9rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        margin: 0;
+      }
+
+      /* Footer */
+      .footer {
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+        padding: 3rem 2rem 1.5rem;
+      }
+
+      .footer-container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .footer-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 3rem;
+        margin-bottom: 2rem;
+      }
+
+      .footer-brand h3 {
+        font-size: 1.25rem;
+        font-weight: 700;
         color: var(--accent);
         margin-bottom: 0.75rem;
       }
-      .label-input-wrapper {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      .label-input {
-        flex: 1;
-        min-width: 150px;
-        padding: 0.5rem 0.75rem;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
+
+      .footer-brand p {
+        color: var(--text-secondary);
         font-size: 0.9rem;
-        outline: none;
-        background: var(--bg-card);
-        color: var(--text-primary);
-      }
-      .label-input:focus {
-        border-color: var(--accent);
-      }
-      .label-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        background: var(--accent-bg);
-        color: var(--accent);
-        padding: 0.35rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: 500;
-      }
-      .label-tag button {
-        background: none;
-        border: none;
-        color: var(--accent);
-        cursor: pointer;
-        font-size: 1rem;
-        line-height: 1;
-        padding: 0;
-      }
-      .label-suggestions {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        margin-top: 0.75rem;
-      }
-      .label-suggestion {
-        background: var(--bg-hover);
-        border: none;
-        padding: 0.35rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        cursor: pointer;
-        transition: background 0.2s;
-        color: var(--text-primary);
-      }
-      .label-suggestion:hover {
-        background: var(--border-color);
+        line-height: 1.6;
       }
 
-      @media (max-width: 768px) {
-        .sidebar {
+      .footer-links h4 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .footer-links ul {
+        list-style: none;
+      }
+
+      .footer-links ul li {
+        margin-bottom: 0.75rem;
+      }
+
+      .footer-links a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: color 0.2s;
+      }
+
+      .footer-links a:hover {
+        color: var(--accent);
+      }
+
+      .footer-bottom {
+        padding-top: 2rem;
+        border-top: 1px solid var(--border-color);
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      /* Responsive */
+      @media (max-width: 968px) {
+        .hero {
+          grid-template-columns: 1fr;
+          padding: 3rem 2rem;
+        }
+
+        .hero-content h1 {
+          font-size: 2.5rem;
+        }
+
+        .steps {
+          grid-template-columns: 1fr;
+          gap: 2rem;
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 2rem;
+        }
+
+        .nav-links {
           display: none;
         }
-        .main {
-          margin-left: 0;
+      }
+
+      @media (max-width: 640px) {
+        .hero-content h1 {
+          font-size: 2rem;
+        }
+
+        .section-header h2,
+        .try-it h2 {
+          font-size: 2rem;
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr;
         }
       }
     </style>
   </head>
   <body>
-    <aside class="sidebar">
-      <div class="logo">~/bonscanner</div>
-      <div class="logo-sub">Belegscanner</div>
-      <ul class="nav-menu">
-        <li>
-          <a href="stats.html" class="nav-item">
-            <svg class="nav-icon" viewBox="0 0 24 24">
-              <path d="M3 3v18h18" />
-              <path d="M18 9l-5 5-4-4-3 3" />
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <a href="index.html" class="logo">~/bonscanner</a>
+        <ul class="nav-links">
+          <li><a href="#wie-es-funktioniert">Wie es funktioniert</a></li>
+          <li><a href="stats.html">Dashboard</a></li>
+        </ul>
+        <div class="nav-actions">
+          <button
+            class="theme-toggle-btn"
+            id="theme-toggle"
+            title="Dunkel-/Hellmodus"
+          >
+            <svg viewBox="0 0 24 24" id="theme-icon">
+              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
             </svg>
-            Dashboard
-          </a>
-        </li>
-        <li>
-          <a href="belege.html" class="nav-item">
-            <svg class="nav-icon" viewBox="0 0 24 24">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="8" y1="13" x2="16" y2="13" />
-              <line x1="8" y1="17" x2="16" y2="17" />
-            </svg>
-            Belege
-          </a>
-        </li>
-        <li>
-          <a href="index.html" class="nav-item active">
-            <svg class="nav-icon" viewBox="0 0 24 24">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            Hochladen
-          </a>
-        </li>
-      </ul>
-      <button class="theme-toggle" id="theme-toggle" title="Dunkel-/Hellmodus">
-        <svg viewBox="0 0 24 24" id="theme-icon">
-          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-        </svg>
-      </button>
-    </aside>
-
-    <main class="main">
-      <h1>Beleg hochladen</h1>
-
-      <div class="upload-area" id="upload-area">
-        <input type="file" id="file-input" accept="image/*" />
-        <div class="upload-icon">↑</div>
-        <p class="upload-text">Datei hier ablegen oder klicken</p>
-        <p class="upload-hint">Unterstützt: JPG, PNG, WEBP</p>
-      </div>
-
-      <div class="preview-container" id="preview-container">
-        <img id="preview-img" class="preview-img" src="" alt="Vorschau" />
-      </div>
-
-      <div class="label-section" id="label-section">
-        <h3>Kategorie</h3>
-        <div class="label-input-wrapper">
-          <div id="selected-labels"></div>
-          <input
-            type="text"
-            class="label-input"
-            id="label-input"
-            placeholder="Kategorie eingeben..."
-          />
+          </button>
         </div>
-        <div class="label-suggestions" id="label-suggestions"></div>
       </div>
+    </nav>
 
-      <div class="results" id="results"></div>
-    </main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-content">
+        <h1>
+          Manage your<br />expenses<br />
+          <span class="highlight">effortlessly</span>
+        </h1>
+        <p>
+          Bonscanner ist die einfachste Art, Ihre Quittungen und Belege zu
+          digitalisieren, zu analysieren und für Ihre Steuererklärung
+          aufzubereiten.
+        </p>
+        <div class="hero-actions">
+          <a href="hochladen.html" class="btn btn-primary">
+            Kostenlos starten
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a href="hochladen.html" class="btn btn-secondary">Demo ansehen</a>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="chart-preview">
+          <div class="chart-line">
+            <svg viewBox="0 0 400 200" preserveAspectRatio="none">
+              <path
+                d="M 0 180 Q 50 120, 100 140 T 200 80 T 300 100 L 400 60"
+                stroke="#f5a623"
+                stroke-width="3"
+                fill="none"
+                stroke-linecap="round"
+              />
+              <circle cx="100" cy="140" r="5" fill="#f5a623" />
+              <circle cx="200" cy="80" r="5" fill="#f5a623" />
+              <circle cx="300" cy="100" r="5" fill="#f5a623" />
+              <circle cx="400" cy="60" r="5" fill="#f5a623" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works Section -->
+    <section class="how-it-works" id="wie-es-funktioniert">
+      <div class="section-container">
+        <div class="section-header">
+          <h2>Wie es funktioniert</h2>
+          <p>
+            Vom Papierbeleg zum digitalen Archiv in drei einfachen Schritten:
+          </p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+            </div>
+            <h3>1. Scannen</h3>
+            <p>Fotografieren Sie Ihren Beleg oder laden Sie ein Bild hoch.</p>
+          </div>
+          <div class="step">
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2v20M2 12h20" />
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                />
+              </svg>
+            </div>
+            <h3>2. Erkennen</h3>
+            <p>
+              OCR-Texterkennung extrahiert Datum, Händler und Betrag aus Ihrem
+              Beleg.
+            </p>
+          </div>
+          <div class="step">
+            <div class="step-icon">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </div>
+            <h3>3. Organisieren</h3>
+            <p>
+              Belege werden automatisch gespeichert und können kategorisiert
+              werden.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-container">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <h3>~/bonscanner</h3>
+            <p>
+              Die einfache Lösung für Ihre Ausgabenverwaltung. Digital,
+              automatisiert und rechtskonform.
+            </p>
+          </div>
+          <div class="footer-links">
+            <h4>Produkt</h4>
+            <ul>
+              <li><a href="hochladen.html">Hochladen</a></li>
+              <li><a href="stats.html">Dashboard</a></li>
+              <li><a href="belege.html">Belege</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>© 2026 Bonscanner</p>
+        </div>
+      </div>
+    </footer>
 
     <script>
-      const API_URL = "http://localhost:5000";
-      let selectedLabels = [];
-      let availableLabels = [];
-      let pendingFile = null;
-
-      const uploadArea = document.getElementById("upload-area");
-      const fileInput = document.getElementById("file-input");
-      const previewContainer = document.getElementById("preview-container");
-      const previewImg = document.getElementById("preview-img");
-      const results = document.getElementById("results");
-      const labelSection = document.getElementById("label-section");
-      const labelInput = document.getElementById("label-input");
-      const selectedLabelsDiv = document.getElementById("selected-labels");
-      const suggestionsDiv = document.getElementById("label-suggestions");
-
-      async function loadLabels() {
-        try {
-          const res = await fetch(`${API_URL}/labels`);
-          availableLabels = await res.json();
-        } catch (e) {
-          availableLabels = [];
-        }
-      }
-
-      function renderSuggestions() {
-        const unused = availableLabels
-          .filter((l) => !selectedLabels.includes(l))
-          .slice(0, 8);
-        suggestionsDiv.innerHTML = unused
-          .map(
-            (l) =>
-              `<button class="label-suggestion" onclick="addLabel('${l}')">${l}</button>`,
-          )
-          .join("");
-      }
-
-      function renderSelectedLabels() {
-        selectedLabelsDiv.innerHTML = selectedLabels
-          .map(
-            (l) =>
-              `<span class="label-tag">${l}<button onclick="removeLabel('${l}')">&times;</button></span>`,
-          )
-          .join("");
-        renderSuggestions();
-      }
-
-      function addLabel(label) {
-        if (label && !selectedLabels.includes(label)) {
-          selectedLabels.push(label);
-          renderSelectedLabels();
-        }
-        labelInput.value = "";
-      }
-
-      function removeLabel(label) {
-        selectedLabels = selectedLabels.filter((l) => l !== label);
-        renderSelectedLabels();
-      }
-
-      labelInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === ",") {
-          e.preventDefault();
-          addLabel(labelInput.value.trim());
-        }
-      });
-
-      uploadArea.addEventListener("click", () => fileInput.click());
-      uploadArea.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        uploadArea.classList.add("dragover");
-      });
-      uploadArea.addEventListener("dragleave", () =>
-        uploadArea.classList.remove("dragover"),
-      );
-      uploadArea.addEventListener("drop", (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove("dragover");
-        if (e.dataTransfer.files.length) showPreview(e.dataTransfer.files[0]);
-      });
-      fileInput.addEventListener("change", (e) => {
-        if (e.target.files.length) showPreview(e.target.files[0]);
-      });
-
-      function showPreview(file) {
-        pendingFile = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          previewImg.src = e.target.result;
-          previewContainer.classList.add("active");
-          labelSection.classList.add("active");
-          selectedLabels = [];
-          renderSelectedLabels();
-          renderSuggestions();
-        };
-        reader.readAsDataURL(file);
-        setTimeout(() => {
-          if (pendingFile === file) handleFile(file);
-        }, 2000);
-      }
-
-      async function handleFile(file) {
-        results.classList.add("active");
-        results.innerHTML = `<div class="loading"><div class="spinner"></div><p class="loading-text">Analysiere Beleg...</p></div>`;
-
-        try {
-          const formData = new FormData();
-          formData.append("image", file);
-          selectedLabels.forEach((l) => formData.append("labels", l));
-
-          const response = await fetch(`${API_URL}/scan`, {
-            method: "POST",
-            body: formData,
-          });
-          const data = await response.json();
-          if (data.error) throw new Error(data.error);
-          displayResults(data);
-        } catch (error) {
-          results.innerHTML = `<div class="error">Fehler: ${error.message}</div>`;
-        }
-      }
-
-      function displayResults(data) {
-        const itemsHtml = data.items?.length
-          ? `<div class="result-section"><h3>Artikel</h3><ul class="items-list">${data.items.map((i) => `<li><span>${i.name}</span><span class="item-price">${i.price}</span></li>`).join("")}</ul></div>`
-          : "";
-        results.innerHTML = `
-          <div class="result-section"><h3>Geschäft</h3><p class="result-value">${data.store_name || "Nicht gefunden"}</p></div>
-          <div class="result-section"><h3>Datum</h3><p class="result-value">${data.date || "Nicht gefunden"}</p></div>
-          <div class="result-section"><h3>Gesamtsumme</h3><p class="result-value">${data.total || "Nicht gefunden"}</p></div>
-          ${itemsHtml}
-          <div class="result-section"><h3>OCR-Rohtext</h3><pre class="raw-text">${data.raw_text || "Kein Text erkannt"}</pre></div>
-        `;
-      }
-
-      // Dark mode
+      // Dark mode toggle
       const themeToggle = document.getElementById("theme-toggle");
       const themeIcon = document.getElementById("theme-icon");
+
       function setTheme(dark) {
         document.documentElement.setAttribute(
           "data-theme",
@@ -610,6 +662,7 @@
           ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
           : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
       }
+
       if (localStorage.getItem("theme") === "dark") setTheme(true);
       themeToggle.addEventListener("click", () =>
         setTheme(
@@ -617,7 +670,16 @@
         ),
       );
 
-      loadLabels();
+      // Smooth scroll for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute("href"));
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      });
     </script>
   </body>
 </html>

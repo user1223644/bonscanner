@@ -72,7 +72,70 @@ def init_db():
             "raw_text": "TEXT",
         }
         ensure_columns(conn, needed_cols)
+        
+        # Create receipt_items table
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS receipt_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receipt_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                quantity REAL DEFAULT 1.0,
+                unit_price REAL,
+                line_total REAL,
+                FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt_id ON receipt_items(receipt_id)"
+        )
+        
+        # Run migration to move JSON items to receipt_items table
+        migrate_items_to_table(conn)
+        
         conn.commit()
+
+
+def migrate_items_to_table(conn):
+    """Migrate items from JSON column to receipt_items table."""
+    # Check if migration is needed
+    existing_items = conn.execute("SELECT COUNT(*) as count FROM receipt_items").fetchone()
+    if existing_items['count'] > 0:
+        # Already migrated
+        return
+    
+    # Get all receipts with items
+    receipts = conn.execute(
+        "SELECT id, items FROM receipts WHERE items IS NOT NULL AND items != '[]'"
+    ).fetchall()
+    
+    for receipt in receipts:
+        receipt_id = receipt['id']
+        items = json_loads_list(receipt['items'])
+        
+        for item in items:
+            # Extract item data
+            name = item.get('name', '')
+            if not name:
+                continue
+            
+            # Parse price - could be string like "1.50 €" or float
+            price_str = item.get('price', '')
+            line_total = None
+            if price_str:
+                line_total = parse_total_to_float(price_str)
+            
+            # Insert into receipt_items
+            conn.execute(
+                """
+                INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
+                VALUES (?, ?, ?, ?)
+                """,
+                (receipt_id, name, 1.0, line_total)
+            )
+    
+    conn.commit()
 
 
 def parse_total_to_float(total):
@@ -97,7 +160,7 @@ def save_receipt(result, labels=None):
     total_value = parse_total_to_float(result.get('total'))
 
     with get_db_connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO receipts (
                 store_name, store_location, postal_code, receipt_number,
@@ -119,6 +182,29 @@ def save_receipt(result, labels=None):
                 created_at,
             ),
         )
+        receipt_id = cursor.lastrowid
+        
+        # Also save items to receipt_items table
+        items = result.get('items', [])
+        for item in items:
+            name = item.get('name', '')
+            if not name:
+                continue
+            
+            # Parse price
+            price_str = item.get('price', '')
+            line_total = None
+            if price_str:
+                line_total = parse_total_to_float(price_str)
+            
+            conn.execute(
+                """
+                INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
+                VALUES (?, ?, ?, ?)
+                """,
+                (receipt_id, name, 1.0, line_total)
+            )
+        
         conn.commit()
 
 
@@ -175,6 +261,29 @@ def get_all_receipts():
             ORDER BY id DESC
             """
         ).fetchall()
+        
+        # Fetch all items from receipt_items table
+        all_items = conn.execute(
+            """
+            SELECT receipt_id, name, quantity, unit_price, line_total
+            FROM receipt_items
+            ORDER BY id
+            """
+        ).fetchall()
+        
+        # Group items by receipt_id
+        items_by_receipt = {}
+        for item in all_items:
+            receipt_id = item['receipt_id']
+            if receipt_id not in items_by_receipt:
+                items_by_receipt[receipt_id] = []
+            
+            # Format item like the original JSON structure
+            item_dict = {
+                'name': item['name'],
+                'price': f"{item['line_total']:.2f} €" if item['line_total'] else ''
+            }
+            items_by_receipt[receipt_id].append(item_dict)
 
     return [
         {
@@ -186,7 +295,8 @@ def get_all_receipts():
             'payment_method': row['payment_method'],
             'date': row['date'],
             'total': row['total'],
-            'items': json_loads_list(row['items']),
+            # Read from receipt_items table, fallback to JSON
+            'items': items_by_receipt.get(row['id'], json_loads_list(row['items'])),
             'labels': json_loads_list(row['labels']),
             'raw_text': row['raw_text'],
             'created_at': row['created_at'],
@@ -278,3 +388,92 @@ def get_receipt_stats():
         'monthly_totals': sorted_monthly,
         'category_totals': sorted_category,
     }
+
+
+def add_receipt_item(receipt_id, name, price):
+    """Add an item to a receipt."""
+    line_total = parse_total_to_float(price)
+    
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
+            VALUES (?, ?, ?, ?)
+            """,
+            (receipt_id, name, 1.0, line_total)
+        )
+        conn.commit()
+    
+    # Recalculate total
+    recalculate_receipt_total(receipt_id)
+
+
+def delete_receipt_item(item_id):
+    """Delete an item from receipt_items table."""
+    with get_db_connection() as conn:
+        # Get receipt_id before deleting
+        row = conn.execute(
+            "SELECT receipt_id FROM receipt_items WHERE id = ?",
+            (item_id,)
+        ).fetchone()
+        
+        if not row:
+            return False
+        
+        receipt_id = row['receipt_id']
+        
+        conn.execute("DELETE FROM receipt_items WHERE id = ?", (item_id,))
+        conn.commit()
+    
+    # Recalculate total
+    recalculate_receipt_total(receipt_id)
+    return True
+
+
+def get_receipt_items(receipt_id):
+    """Get all items for a specific receipt."""
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, name, quantity, unit_price, line_total
+            FROM receipt_items
+            WHERE receipt_id = ?
+            ORDER BY id
+            """,
+            (receipt_id,)
+        ).fetchall()
+    
+    return [
+        {
+            'id': row['id'],
+            'name': row['name'],
+            'quantity': row['quantity'],
+            'unit_price': row['unit_price'],
+            'line_total': row['line_total'],
+            'price': f"{row['line_total']:.2f} €" if row['line_total'] else ''
+        }
+        for row in rows
+    ]
+
+
+def recalculate_receipt_total(receipt_id):
+    """Recalculate and update receipt total from items."""
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT SUM(line_total) as total
+            FROM receipt_items
+            WHERE receipt_id = ? AND line_total IS NOT NULL
+            """,
+            (receipt_id,)
+        ).fetchone()
+        
+        new_total = row['total'] or 0.0
+        
+        conn.execute(
+            "UPDATE receipts SET total = ? WHERE id = ?",
+            (new_total, receipt_id)
+        )
+        conn.commit()
+    
+    return new_total

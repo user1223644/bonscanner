@@ -12,7 +12,8 @@ from PIL import Image
 
 from database import (
     init_db, save_receipt, get_all_receipts, get_receipt_stats,
-    get_all_labels, update_receipt_labels
+    get_all_labels, update_receipt_labels, add_receipt_item,
+    delete_receipt_item, get_receipt_items
 )
 from extractor import extract_receipt_data
 
@@ -100,6 +101,39 @@ def list_labels():
 def receipt_stats():
     """Get receipt statistics."""
     return jsonify(get_receipt_stats())
+
+
+@app.route('/receipts/<int:receipt_id>/items', methods=['GET'])
+def list_receipt_items(receipt_id):
+    """Get all items for a specific receipt."""
+    items = get_receipt_items(receipt_id)
+    return jsonify(items)
+
+
+@app.route('/receipts/<int:receipt_id>/items', methods=['POST'])
+def add_item(receipt_id):
+    """Add an item to a receipt."""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    price = data.get('price', 0)
+    
+    if not name:
+        return jsonify({'error': 'Item name required'}), 400
+    
+    add_receipt_item(receipt_id, name, price)
+    items = get_receipt_items(receipt_id)
+    return jsonify({'success': True, 'items': items})
+
+
+@app.route('/receipts/<int:receipt_id>/items/<int:item_id>', methods=['DELETE'])
+def remove_item(receipt_id, item_id):
+    """Delete an item from a receipt."""
+    success = delete_receipt_item(item_id)
+    if not success:
+        return jsonify({'error': 'Item not found'}), 404
+    
+    items = get_receipt_items(receipt_id)
+    return jsonify({'success': True, 'items': items})
 
 
 @app.route('/health', methods=['GET'])
