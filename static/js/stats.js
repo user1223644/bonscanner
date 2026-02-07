@@ -113,7 +113,6 @@ function renderSpendingChart(monthlyData) {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
       plugins: { 
         legend: { display: false },
         tooltip: {
@@ -170,7 +169,6 @@ function renderCategoryChart(categoryData) {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
       cutout: "65%",
       plugins: {
         legend: { display: false },
