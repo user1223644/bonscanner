@@ -90,6 +90,7 @@ function renderSpendingChart(monthlyData) {
 
   const style = getComputedStyle(document.body);
   const gridColor = style.getPropertyValue("--border-color").trim();
+  const textColor = style.getPropertyValue("--text-secondary").trim();
   const accentColor = style.getPropertyValue("--accent").trim();
 
   spendingChart = new Chart(ctx, {
@@ -112,15 +113,29 @@ function renderSpendingChart(monthlyData) {
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: style.getPropertyValue("--bg-card").trim(),
+          titleColor: textColor,
+          bodyColor: textColor,
+          borderColor: gridColor,
+          borderWidth: 1,
+        }
+      },
       scales: {
         y: {
           beginAtZero: true,
           grid: { color: gridColor },
-          ticks: { callback: (v) => v + " €" },
+          ticks: { 
+            callback: (v) => v + " €",
+            color: textColor
+          },
         },
         x: {
           grid: { display: false },
+          ticks: { color: textColor }
         },
       },
     },
@@ -137,6 +152,10 @@ function renderCategoryChart(categoryData) {
 
   if (categoryChart) categoryChart.destroy();
 
+  const style = getComputedStyle(document.body);
+  const gridColor = style.getPropertyValue("--border-color").trim();
+  const textColor = style.getPropertyValue("--text-secondary").trim();
+
   categoryChart = new Chart(ctx, {
     type: "doughnut",
     data: {
@@ -151,9 +170,24 @@ function renderCategoryChart(categoryData) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       cutout: "65%",
       plugins: {
         legend: { display: false },
+        tooltip: {
+          backgroundColor: style.getPropertyValue("--bg-card").trim(),
+          titleColor: textColor,
+          bodyColor: textColor,
+          borderColor: gridColor,
+          borderWidth: 1,
+          callbacks: {
+            label: function(context) {
+              const value = context.parsed;
+              const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+              return `${context.label}: ${value.toFixed(2)} € (${percentage}%)`;
+            }
+          }
+        }
       },
     },
   });
