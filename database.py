@@ -298,17 +298,53 @@ def update_receipt(receipt_id, updates):
     return True
 
 
-def get_all_receipts():
-    """Retrieve all receipts from database."""
+def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filter=None):
+    """Retrieve all receipts from database with optional filtering.
+    
+    Args:
+        store_filter: Filter by store name (case-insensitive substring match)
+        date_from: Filter receipts from this date (YYYY-MM-DD)
+        date_to: Filter receipts to this date (YYYY-MM-DD)
+        label_filter: Filter by label (exact match)
+    
+    Returns:
+        List of receipt dictionaries
+    """
     with get_db_connection() as conn:
-        rows = conn.execute(
-            """
+        # Build SQL query with optional filters
+        sql = """
             SELECT id, store_name, store_location, postal_code, receipt_number,
                    payment_method, date, total, items, labels, raw_text, created_at
             FROM receipts
-            ORDER BY id DESC
-            """
-        ).fetchall()
+            WHERE 1=1
+        """
+        params = []
+        
+        # Store name filter (case-insensitive)
+        if store_filter:
+            sql += " AND LOWER(store_name) LIKE LOWER(?)"
+            params.append(f"%{store_filter}%")
+        
+        # Date range filters
+        if date_from:
+            # Support both DD.MM.YYYY and YYYY-MM-DD formats
+            sql += " AND (date >= ? OR date LIKE ?)"
+            params.append(date_from)
+            params.append(f"%{date_from}%")
+        
+        if date_to:
+            sql += " AND (date <= ? OR date LIKE ?)"
+            params.append(date_to)
+            params.append(f"%{date_to}%")
+        
+        # Label filter
+        if label_filter:
+            sql += " AND labels LIKE ?"
+            params.append(f'%"{label_filter}"%')
+        
+        sql += " ORDER BY id DESC"
+        
+        rows = conn.execute(sql, params).fetchall()
         
         # Fetch all items from receipt_items table
         all_items = conn.execute(

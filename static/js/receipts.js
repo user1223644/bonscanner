@@ -48,7 +48,33 @@ async function loadReceipts() {
       labelColorMap[e[0]] = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
     });
 
-    const res = await fetch(`${API_URL}/receipts`);
+    // Populate label filter dropdown
+    const labelFilter = document.getElementById('label-filter');
+    if (labelFilter && labelFilter.options.length === 1) {
+      sorted.forEach(([label]) => {
+        const option = document.createElement('option');
+        option.value = label;
+        option.textContent = label;
+        labelFilter.appendChild(option);
+      });
+    }
+
+    // Build query parameters from filters
+    const params = new URLSearchParams();
+    const storeFilter = document.getElementById('store-filter')?.value.trim();
+    const dateFrom = document.getElementById('date-from-filter')?.value;
+    const dateTo = document.getElementById('date-to-filter')?.value;
+    const labelFilterValue = document.getElementById('label-filter')?.value;
+
+    if (storeFilter) params.append('store', storeFilter);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    if (labelFilterValue) params.append('label', labelFilterValue);
+
+    const queryString = params.toString();
+    const url = `${API_URL}/receipts${queryString ? '?' + queryString : ''}`;
+    
+    const res = await fetch(url);
     const receipts = await res.json();
     const tbody = document.getElementById("receipts-body");
 
@@ -103,6 +129,29 @@ async function loadReceipts() {
       '<tr><td colspan="5" class="empty-state">Fehler beim Laden</td></tr>';
   }
 }
+
+// Debounce helper
+let filterDebounceTimer;
+function debounceFilter() {
+  clearTimeout(filterDebounceTimer);
+  filterDebounceTimer = setTimeout(loadReceipts, 500);
+}
+
+function clearFilters() {
+  document.getElementById('store-filter').value = '';
+  document.getElementById('date-from-filter').value = '';
+  document.getElementById('date-to-filter').value = '';
+  document.getElementById('label-filter').value = '';
+  loadReceipts();
+}
+
+// Attach filter event listeners
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('store-filter')?.addEventListener('input', debounceFilter);
+  document.getElementById('date-from-filter')?.addEventListener('change', loadReceipts);
+  document.getElementById('date-to-filter')?.addEventListener('change', loadReceipts);
+  document.getElementById('label-filter')?.addEventListener('change', loadReceipts);
+});
 
 function renderItemsDetail(items) {
   if (!items || items.length === 0) {

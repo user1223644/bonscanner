@@ -109,8 +109,26 @@ def scan_receipt():
 
 @app.route('/receipts', methods=['GET'])
 def list_receipts():
-    """List all stored receipts."""
-    return jsonify(get_all_receipts())
+    """List all stored receipts with optional filtering.
+    
+    Query params:
+        store: Filter by store name
+        date_from: Filter from date (YYYY-MM-DD)
+        date_to: Filter to date (YYYY-MM-DD)
+        label: Filter by category label
+    """
+    store_filter = request.args.get('store')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    label_filter = request.args.get('label')
+    
+    receipts = get_all_receipts(
+        store_filter=store_filter,
+        date_from=date_from,
+        date_to=date_to,
+        label_filter=label_filter
+    )
+    return jsonify(receipts)
 
 
 @app.route('/receipts/<int:receipt_id>/labels', methods=['PATCH'])

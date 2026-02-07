@@ -361,12 +361,63 @@
         margin-top: 0.5rem;
       }
 
+      /* Filter Section */
+      .filter-section {
+        background: var(--bg-card);
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .filter-input {
+        flex: 1;
+        min-width: 150px;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        transition: border-color 0.2s;
+      }
+
+      .filter-input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      .clear-filters-btn {
+        padding: 0.6rem 1.25rem;
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+      }
+
+      .clear-filters-btn:hover {
+        background: var(--border-color);
+      }
+
       @media (max-width: 768px) {
         .sidebar {
           display: none;
         }
         .main {
           margin-left: 0;
+        }
+        .filter-section {
+          flex-direction: column;
+        }
+        .filter-input {
+          width: 100%;
         }
       }
     </style>
@@ -416,6 +467,34 @@
 
     <main class="main">
       <h1>Alle Belege</h1>
+
+      <!-- Search & Filter Section -->
+      <div class="filter-section">
+        <input
+          type="text"
+          id="store-filter"
+          class="filter-input"
+          placeholder="Nach Geschäft suchen..."
+        />
+        <input
+          type="date"
+          id="date-from-filter"
+          class="filter-input"
+          placeholder="Von Datum"
+        />
+        <input
+          type="date"
+          id="date-to-filter"
+          class="filter-input"
+          placeholder="Bis Datum"
+        />
+        <select id="label-filter" class="filter-input">
+          <option value="">Alle Kategorien</option>
+        </select>
+        <button class="clear-filters-btn" onclick="clearFilters()">
+          Filter zurücksetzen
+        </button>
+      </div>
 
       <div class="table-card">
         <table>
