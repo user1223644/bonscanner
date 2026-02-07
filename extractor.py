@@ -30,7 +30,9 @@ from constants import (
     MAX_LINES_TO_PROCESS,
     MAX_REASONABLE_ITEM_PRICE,
     MAX_REASONABLE_TOTAL,
+    MAX_ITEM_NAME_LENGTH,
     MIN_RECEIPT_YEAR,
+    MIN_ITEM_NAME_LENGTH,
     MIN_REASONABLE_ITEM_PRICE,
     MIN_REASONABLE_TOTAL,
     NORMALIZED_KNOWN_STORES,
@@ -137,6 +139,9 @@ class ExtractionConfig:
     item_min_confidence: float = 0.55
     total_min_score: float = 0.6
     max_lines: int = MAX_LINES_TO_PROCESS
+    max_items_per_receipt: int = MAX_ITEMS_PER_RECEIPT
+    # Note: MIN/MAX_ITEM_NAME_LENGTH and MIN/MAX_REASONABLE_* constants
+    # are used directly in extraction functions rather than via config
 
 
 @dataclass(frozen=True)
@@ -880,7 +885,13 @@ def _extract_items(lines: Sequence[ReceiptLine], *, config: ExtractionConfig) ->
 
         if len(clean) < 2 or not re.search(r"[A-Za-zÄÖÜäöüß]", clean):
             continue
-        if _KW_BLOCKED.matches(clean.casefold(), _tokenize(clean.casefold())):
+        if not (MIN_ITEM_NAME_LENGTH <= len(clean) <= MAX_ITEM_NAME_LENGTH):
+            continue
+        if _KW_BLOCKED.matches(clean.casefold(), _tokenize(clean.casefold())) and not is_discount:
+            continue
+        if quantity <= 0:
+            continue
+        if not (config.min_reasonable_item_total <= line_total.amount <= config.max_reasonable_item_total):
             continue
 
         price_str = _format_money(line_total)
@@ -893,14 +904,19 @@ def _extract_items(lines: Sequence[ReceiptLine], *, config: ExtractionConfig) ->
             "name": clean,
             "price": price_str,
             "quantity": quantity,
+            "line_total_amount": float(line_total.amount),
+            "currency": line_total.currency,
         }
         if unit:
             item["unit"] = unit
         if unit_price:
             item["unit_price"] = _format_money(unit_price)
+            item["unit_price_amount"] = float(unit_price.amount)
         if is_discount:
             item["is_discount"] = True
         items.append(item)
+        if len(items) >= config.max_items_per_receipt:
+            break
 
     return items
 
@@ -909,6 +925,15 @@ def _sum_item_totals(items: Sequence[dict]) -> Optional[Decimal]:
     total = Decimal("0")
     has_any = False
     for it in items:
+        amount_val = it.get("line_total_amount")
+        if amount_val is not None:
+            try:
+                total += Decimal(str(amount_val)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                has_any = True
+                continue
+            except InvalidOperation:
+                pass
+
         price = it.get("price") or ""
         m = RE_MONEY_TOKEN.search(str(price))
         if not m:
@@ -950,6 +975,8 @@ class ReceiptExtractor:
 
         items_sum = _sum_item_totals(items)
         total_money = _extract_total_money(lines, config=self._config, expected_total=items_sum)
+        if total_money and not (MIN_REASONABLE_TOTAL <= float(total_money.amount) <= MAX_REASONABLE_TOTAL):
+            total_money = None
 
         result: dict = {
             "store_name": store_name,
