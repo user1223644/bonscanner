@@ -25,6 +25,7 @@ from constants import (
     DATE_KEYWORDS,
     DEFAULT_CURRENCY_SYMBOL,
     DISCOUNT_KEYWORDS,
+    KNOWN_STORES,
     MAX_FUTURE_DAYS,
     MAX_ITEMS_PER_RECEIPT,
     MAX_LINES_TO_PROCESS,
@@ -36,8 +37,8 @@ from constants import (
     MIN_REASONABLE_ITEM_PRICE,
     MIN_REASONABLE_TOTAL,
     NORMALIZED_KNOWN_STORES,
+    OCR_ALPHA_SUBSTITUTIONS,
     OCR_DIGIT_SUBSTITUTIONS,
-    OCR_LETTER_SUBSTITUTIONS,
     OCR_TEXT_BIGRAM_SUBSTITUTIONS,
     PAYMENT_KEYWORDS,
     PAYMENT_RULES,
@@ -51,7 +52,13 @@ from constants import (
     TECHNICAL_KEYWORDS,
     TOTAL_KEYWORDS,
     iter_legal_suffix_tokens,
+    normalize_store_token,
 )
+
+_MIN_TOTAL_AMOUNT = Decimal(str(MIN_REASONABLE_TOTAL))
+_MAX_TOTAL_AMOUNT = Decimal(str(MAX_REASONABLE_TOTAL))
+_MIN_ITEM_AMOUNT = Decimal(str(MIN_REASONABLE_ITEM_PRICE))
+_MAX_ITEM_AMOUNT = Decimal(str(MAX_REASONABLE_ITEM_PRICE))
 
 _RE_WHITESPACE = re.compile(r"[ \t\u00a0]+")
 _RE_NON_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
@@ -103,6 +110,27 @@ _KW_PAYMENT = _build_keyword_set(PAYMENT_KEYWORDS)
 _KW_DATE = _build_keyword_set(DATE_KEYWORDS)
 _KW_TECHNICAL = _build_keyword_set(TECHNICAL_KEYWORDS)
 _KW_BLOCKED = _build_keyword_set(BLOCKED_WORDS)
+
+_STORE_CANONICAL_BY_NORM = {normalize_store_token(s): s for s in KNOWN_STORES}
+
+_STORE_CONFUSABLES_TRANS = str.maketrans(
+    {
+        "0": "o",
+        "1": "l",
+        "5": "s",
+        "8": "b",
+        "i": "l",
+        "l": "l",
+        "o": "o",
+        "s": "s",
+        "b": "b",
+    }
+)
+
+
+def _fold_store_confusables(text: str) -> str:
+    # Used for store matching only; do not apply globally (would break keywords like "visa").
+    return text.translate(_STORE_CONFUSABLES_TRANS)
 
 
 class LineLabel(str, Enum):
@@ -202,6 +230,7 @@ class TextNormalizer:
     def __init__(self, config: NormalizationConfig) -> None:
         self._config = config
         self._digit_trans = str.maketrans(OCR_DIGIT_SUBSTITUTIONS)
+        self._alpha_trans = str.maketrans(OCR_ALPHA_SUBSTITUTIONS)
 
     def normalize_text(self, text: str) -> str:
         if self._config.unicode_nfkc:
@@ -215,7 +244,7 @@ class TextNormalizer:
         if self._config.currency_normalization:
             text = self._normalize_currency_symbols(text)
         if self._config.ocr_numeric_corrections:
-            text = self._correct_numeric_ocr_noise(text)
+            text = self._correct_ocr_noise(text)
         return text
 
     def _normalize_currency_symbols(self, text: str) -> str:
@@ -226,18 +255,46 @@ class TextNormalizer:
             text = re.sub(rf"\b{re.escape(token)}\b", symbol.casefold(), text, flags=re.IGNORECASE)
         return text
 
-    def _correct_numeric_ocr_noise(self, text: str) -> str:
+    def _correct_ocr_noise(self, text: str) -> str:
+        """
+        Correct common OCR confusables in a token-aware way.
+
+        - Numeric-ish tokens: map letters that look like digits (O→0, l→1, …)
+        - Text-ish tokens: map digits that look like letters (8→b, 0→o, …)
+        """
+
         parts: list[str] = []
         for ln in text.split("\n"):
             tokens = ln.split(" ")
             fixed: list[str] = []
             for t in tokens:
+                if not t:
+                    continue
+                letters = sum(ch.isalpha() for ch in t)
+                digits = sum(ch.isdigit() for ch in t)
+
+                if digits and letters:
+                    # Mixed tokens are common in OCR (e.g., "8AR", "2O.0l.2026").
+                    if letters >= digits:
+                        fixed.append(t.translate(self._alpha_trans))
+                    else:
+                        fixed.append(self._translate_numeric_token(t))
+                    continue
+
                 if _is_numericish_token(t):
-                    fixed.append(t.translate(self._digit_trans))
+                    fixed.append(self._translate_numeric_token(t))
                 else:
                     fixed.append(t)
             parts.append(" ".join(fixed))
         return "\n".join(parts)
+
+    def _translate_numeric_token(self, token: str) -> str:
+        # Preserve unit suffixes like "kg", "g", "l" to avoid turning them into digits.
+        m = re.match(r"^(?P<core>.*?)(?P<suffix>[a-z]{1,3})$", token)
+        if m and any(ch.isdigit() for ch in m.group("core")):
+            core = m.group("core").translate(self._digit_trans)
+            return core + m.group("suffix")
+        return token.translate(self._digit_trans)
 
     def build_match_key(self, text: str) -> str:
         """
@@ -308,7 +365,15 @@ def _parse_decimal_number(
 
 def _extract_money_tokens(line: str, *, default_currency: str) -> tuple[MoneyToken, ...]:
     tokens: list[MoneyToken] = []
+    date_spans = [(m.start(), m.end()) for m in _RE_DATE_DMY.finditer(line)]
+    date_spans.extend((m.start(), m.end()) for m in _RE_DATE_YMD.finditer(line))
+
+    def overlaps_date_span(start: int, end: int) -> bool:
+        return any(start < ds_end and end > ds_start for ds_start, ds_end in date_spans)
+
     for m in RE_MONEY_TOKEN.finditer(line):
+        if date_spans and overlaps_date_span(m.start(), m.end()):
+            continue
         number = m.group("number") or ""
         if not number:
             continue
@@ -406,7 +471,9 @@ def _classify_lines(
     out: list[ReceiptLine] = []
 
     store_lexicon = tuple(NORMALIZED_KNOWN_STORES)
+    store_pairs = tuple((s, _fold_store_confusables(s)) for s in store_lexicon)
     legal_suffixes = tuple(iter_legal_suffix_tokens())
+    legal_suffixes_folded = tuple(_fold_store_confusables(s) for s in legal_suffixes)
 
     for idx, (raw, norm) in enumerate(zip(raw_lines, norm_lines)):
         pos = idx / max(1, total - 1)
@@ -433,8 +500,9 @@ def _classify_lines(
         store_ratio = 0.0
         if idx <= 20 and has_letters:
             key = normalizer.build_match_key(norm)
-            key_no_suffix = " ".join(w for w in key.split() if w not in legal_suffixes)
-            for store in store_lexicon:
+            key_folded = _fold_store_confusables(key)
+            key_no_suffix = " ".join(w for w in key_folded.split() if w not in legal_suffixes_folded)
+            for _store_norm, store in store_pairs:
                 if not store:
                     continue
                 if store in key_no_suffix:
@@ -471,7 +539,19 @@ def _classify_lines(
             # Items are usually mid-receipt; totals are bottom-heavy.
             mid_weight = 1.0 - abs(pos - 0.5) * 2.0  # 1 in middle, 0 at extremes
             scores[LineLabel.ITEM] = max(scores.get(LineLabel.ITEM, 0.0), 0.35 + 0.25 * _clamp01(mid_weight))
-            scores[LineLabel.TOTAL] = max(scores.get(LineLabel.TOTAL, 0.0), 0.25 + 0.35 * _clamp01(pos))
+            total_base = 0.25 + 0.35 * _clamp01(pos)
+            if (
+                has_letters
+                and pos < 0.7
+                and not total_kw
+                and not subtotal_kw
+                and not tax_kw
+                and not payment_kw
+            ):
+                total_base -= 0.15
+            scores[LineLabel.TOTAL] = max(scores.get(LineLabel.TOTAL, 0.0), total_base)
+            if has_letters and not total_kw and not subtotal_kw and not tax_kw and not payment_kw:
+                scores[LineLabel.ITEM] = max(scores.get(LineLabel.ITEM, 0.0), scores.get(LineLabel.ITEM, 0.0) + 0.15)
 
         if idx <= 20 and has_letters and not technical:
             top_boost = 0.25 * (1.0 - pos)
@@ -537,15 +617,15 @@ def _score_store_candidate(
     store_lexicon: Sequence[str],
     legal_suffixes: Sequence[str],
     total_lines: int,
-) -> tuple[float, Optional[str]]:
+) -> tuple[float, Optional[str], Optional[str], float]:
     idx = line.index
     pos = idx / max(1, total_lines - 1)
     if idx > 25:
-        return 0.0, None
+        return 0.0, None, None, 0.0
 
     key = normalizer.build_match_key(line.norm)
     if not key or not re.search(r"[a-zäöüß]", key):
-        return 0.0, None
+        return 0.0, None, None, 0.0
 
     # Strip legal suffix tokens from the end to produce a cleaner header.
     words = key.split()
@@ -560,7 +640,7 @@ def _score_store_candidate(
     if technical or has_money or has_date:
         # Hard guardrails; these are almost never the store header itself.
         penalty = 0.35 if (has_money or has_date) else 0.0
-        return max(0.0, 0.15 - penalty), None
+        return max(0.0, 0.15 - penalty), None, None, 0.0
 
     # Base score from position (top-heavy).
     score = 0.35 + 0.35 * (1.0 - pos)
@@ -573,39 +653,49 @@ def _score_store_candidate(
     if _KW_BLOCKED.matches(clean_key, _tokenize(clean_key)):
         score -= 0.15
 
-    # Store lexicon match: substring + fuzzy.
+    # Store lexicon match: substring + fuzzy (with confusable folding).
     best_ratio = 0.0
-    compact_line = re.sub(r"[^a-z0-9]+", "", clean_key)
-    for store in store_lexicon:
-        if store in clean_key:
+    best_store: Optional[str] = None
+    match_key = _fold_store_confusables(clean_key)
+    compact_line = re.sub(r"[^a-z0-9]+", "", match_key)
+    for store_norm in store_lexicon:
+        store = _fold_store_confusables(store_norm)
+        if store in match_key:
             best_ratio = 1.0
+            best_store = store_norm
             break
         compact_store = re.sub(r"[^a-z0-9]+", "", store)
         if compact_store and compact_store in compact_line:
             best_ratio = max(best_ratio, 0.98)
+            best_store = store_norm
             continue
-        for tok in clean_key.split():
+        for tok in match_key.split():
             if len(tok) < 3 or len(store) < 3:
                 continue
-            best_ratio = max(best_ratio, SequenceMatcher(None, tok, store).ratio())
+            ratio = SequenceMatcher(None, tok, store).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_store = store_norm
 
     if best_ratio >= config.store_fuzzy_threshold:
         score += 0.55 * best_ratio
     else:
         score += 0.15 * best_ratio
 
-    return score, clean_key if clean_key else None
+    return score, clean_key if clean_key else None, best_store, best_ratio
 
 
 def _extract_store(lines: Sequence[ReceiptLine], *, config: ExtractionConfig, normalizer: TextNormalizer) -> Optional[str]:
     store_lexicon = tuple(NORMALIZED_KNOWN_STORES)
     legal_suffixes = tuple(iter_legal_suffix_tokens())
     best_score = 0.0
-    best = None
+    best: Optional[str] = None
+    best_store: Optional[str] = None
+    best_ratio: float = 0.0
     total_lines = len(lines)
 
     for ln in lines[:30]:
-        score, candidate = _score_store_candidate(
+        score, candidate, store_norm, ratio = _score_store_candidate(
             ln,
             normalizer=normalizer,
             config=config,
@@ -614,17 +704,19 @@ def _extract_store(lines: Sequence[ReceiptLine], *, config: ExtractionConfig, no
             total_lines=total_lines,
         )
         if candidate and score > best_score:
-            best_score, best = score, candidate
+            best_score, best, best_store, best_ratio = score, candidate, store_norm, ratio
 
     if best_score < config.store_min_score:
         return None
+    if best_store and best_ratio >= config.store_fuzzy_threshold:
+        return _STORE_CANONICAL_BY_NORM.get(best_store, best_store)
     return best
 
 
 def _extract_location(lines: Sequence[ReceiptLine]) -> tuple[Optional[str], Optional[str]]:
     # Prefer early matches (addresses are near the top).
     for idx, ln in enumerate(lines[:40]):
-        m = RE_POSTAL_CITY.search(ln.norm)
+        m = RE_POSTAL_CITY.search(ln.raw) or RE_POSTAL_CITY.search(ln.norm)
         if not m:
             continue
         postal = m.group("postal")
@@ -891,7 +983,7 @@ def _extract_items(lines: Sequence[ReceiptLine], *, config: ExtractionConfig) ->
             continue
         if quantity <= 0:
             continue
-        if not (config.min_reasonable_item_total <= line_total.amount <= config.max_reasonable_item_total):
+        if not (_MIN_ITEM_AMOUNT <= line_total.amount <= _MAX_ITEM_AMOUNT):
             continue
 
         price_str = _format_money(line_total)
@@ -975,7 +1067,7 @@ class ReceiptExtractor:
 
         items_sum = _sum_item_totals(items)
         total_money = _extract_total_money(lines, config=self._config, expected_total=items_sum)
-        if total_money and not (MIN_REASONABLE_TOTAL <= float(total_money.amount) <= MAX_REASONABLE_TOTAL):
+        if total_money and not (_MIN_TOTAL_AMOUNT <= total_money.amount <= _MAX_TOTAL_AMOUNT):
             total_money = None
 
         result: dict = {
