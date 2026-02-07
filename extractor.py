@@ -13,11 +13,11 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from difflib import SequenceMatcher
 from enum import Enum
-from typing import Iterable, Iterator, Optional, Sequence
+from typing import Iterable, Optional, Sequence
 
 from constants import (
     BLOCKED_WORDS,
@@ -63,7 +63,7 @@ _MAX_ITEM_AMOUNT = Decimal(str(MAX_REASONABLE_ITEM_PRICE))
 _RE_WHITESPACE = re.compile(r"[ \t\u00a0]+")
 _RE_NON_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
 _RE_ADDRESS = re.compile(
-    r"\b(?:str(?:aße|\.)?|straße|weg|platz|allee|ring|gasse|damm)\b",
+    r"(?:straße|strasse|str\.|weg|platz|allee|ring|gasse|damm)\b",
     re.IGNORECASE,
 )
 _RE_PHONE = re.compile(r"\b(?:tel|telefon|phone)\b", re.IGNORECASE)
@@ -75,6 +75,18 @@ _RE_DATE_DMY = re.compile(
 )
 _RE_DATE_YMD = re.compile(r"\b(?P<y>\d{4})[./-](?P<m>\d{1,2})[./-](?P<d>\d{1,2})\b")
 _RE_WORD_TOKEN = re.compile(r"[a-z0-9äöüß]+")
+_RE_RECEIPT_NUMBER_STRICT = re.compile(
+    r"\b(?:"
+    r"beleg(?:-?nr|-?nummer)?|"
+    r"bon(?:-?nr)?|"
+    r"kassenbon(?:-?nr)?|"
+    r"transaktions(?:-?nr)?|"
+    r"transaktion(?:s)?nr|"
+    r"receipt(?:\s*(?:no|nr)|[-\s]*(?:no|nr))?"
+    r")\b[.:\s-]*"
+    r"(?P<id>[a-z0-9-]{3,})",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -223,7 +235,12 @@ def _normalize_currency_token(token: str) -> str:
 
 
 def _is_numericish_token(token: str) -> bool:
-    return any(ch.isdigit() for ch in token) or any(ch in ",.€$£" for ch in token)
+    if any(ch.isdigit() for ch in token):
+        return True
+    if any(sym in token for sym in ("€", "$", "£")):
+        return True
+    # Leading decimals without a leading zero: ",99" / ".99"
+    return bool(re.match(r"^[.,]\d{1,3}$", token))
 
 
 class TextNormalizer:
@@ -275,6 +292,10 @@ class TextNormalizer:
 
                 if digits and letters:
                     # Mixed tokens are common in OCR (e.g., "8AR", "2O.0l.2026").
+                    # But long mixed tokens are often identifiers (TSE ids, receipt numbers).
+                    if len(t) >= 6 and letters >= 2 and digits >= 2 and re.fullmatch(r"[a-z0-9-]+", t):
+                        fixed.append(t)
+                        continue
                     if letters >= digits:
                         fixed.append(t.translate(self._alpha_trans))
                     else:
@@ -731,24 +752,40 @@ def _extract_location(lines: Sequence[ReceiptLine]) -> tuple[Optional[str], Opti
 
 
 def _extract_receipt_number(lines: Sequence[ReceiptLine]) -> Optional[str]:
-    best = None
+    best: Optional[str] = None
     best_score = 0.0
+    stopwords = {"nr", "no", "beleg", "bon", "receipt", "id"}
+
     for ln in lines:
+        candidates: list[tuple[str, float]] = []
+
+        m_strict = _RE_RECEIPT_NUMBER_STRICT.search(ln.norm)
+        if m_strict:
+            cand = (m_strict.group("id") or "").strip()
+            candidates.append((cand, 0.85))
+
         m = RE_RECEIPT_NUMBER.search(ln.norm)
-        if not m:
-            continue
-        candidate = m.group(1).strip()
-        if not candidate:
-            continue
-        score = 0.6
-        if "beleg" in ln.norm or "bon" in ln.norm or "nr" in ln.norm:
-            score += 0.2
-        if ln.index < 25:
-            score += 0.05
-        if len(candidate) >= 6:
-            score += 0.05
-        if score > best_score:
-            best_score, best = score, candidate
+        if m:
+            cand = (m.group(1) or "").strip()
+            candidates.append((cand, 0.65))
+
+        for candidate, base in candidates:
+            if not candidate:
+                continue
+            if candidate.casefold() in stopwords:
+                continue
+            if not re.search(r"\d", candidate):
+                continue
+            score = base
+            if ln.index < 25:
+                score += 0.05
+            if len(candidate) >= 8:
+                score += 0.05
+            if ln.classification.label in {LineLabel.TECHNICAL, LineLabel.META}:
+                score += 0.05
+            if score > best_score:
+                best_score, best = score, candidate
+
     return best
 
 
@@ -920,11 +957,18 @@ def _extract_items(lines: Sequence[ReceiptLine], *, config: ExtractionConfig) ->
     for ln in merged_lines:
         if ln.classification.label in {LineLabel.TOTAL, LineLabel.PAYMENT, LineLabel.TECHNICAL}:
             continue
-        if ln.classification.label == LineLabel.ITEM and ln.classification.confidence < config.item_min_confidence:
-            continue
         if not ln.money:
             continue
         tokens = _tokenize(ln.norm)
+        is_discount_signal = _KW_DISCOUNT.matches(ln.norm, tokens) or any(
+            t.money.amount < 0 for t in ln.money
+        )
+        if (
+            ln.classification.label == LineLabel.ITEM
+            and ln.classification.confidence < config.item_min_confidence
+            and not is_discount_signal
+        ):
+            continue
         if _KW_TOTAL.matches(ln.norm, tokens) or _KW_SUBTOTAL.matches(ln.norm, tokens):
             continue
         if _KW_TAX.matches(ln.norm, tokens) and not re.search(r"[a-zäöüß]", ln.norm):
