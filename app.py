@@ -20,6 +20,41 @@ from extractor import extract_receipt_data
 app = Flask(__name__)
 CORS(app)
 
+# Auto-categorization rules: store name patterns -> category labels
+CATEGORIZATION_RULES = {
+    'Lebensmittel': ['rewe', 'lidl', 'aldi', 'edeka', 'netto', 'penny', 'kaufland'],
+    'Transport': ['shell', 'aral', 'esso', 'total', 'jet'],
+    'Gesundheit': ['apotheke', 'dm', 'rossmann'],
+    'Haushalt': ['bauhaus', 'obi', 'hornbach', 'ikea'],
+    'Elektronik': ['media markt', 'saturn', 'conrad'],
+}
+
+def apply_auto_categorization(store_name, existing_labels):
+    """Apply auto-categorization rules based on store name.
+    
+    Args:
+        store_name: Normalized store name from receipt
+        existing_labels: List of labels already assigned
+        
+    Returns:
+        Updated list of labels with auto-applied categories
+    """
+    labels = list(existing_labels) if existing_labels else []
+    
+    if not store_name:
+        return labels
+    
+    store_lower = store_name.lower()
+    
+    for category, patterns in CATEGORIZATION_RULES.items():
+        # Check if any pattern matches the store name
+        if any(pattern in store_lower for pattern in patterns):
+            # Only add if not already present
+            if category not in labels:
+                labels.append(category)
+    
+    return labels
+
 def parse_labels_from_request(req):
     """Extract labels from form data (list or comma-separated)."""
     labels = req.form.getlist('labels')
@@ -53,6 +88,11 @@ def upload_receipt():
     try:
         text = ocr_image_file(file)
         result = extract_receipt_data(text)
+        
+        # Apply auto-categorization based on store name
+        store_name = result.get('store_name', '')
+        labels = apply_auto_categorization(store_name, labels)
+        
         result['labels'] = labels
         save_receipt(result, labels=labels)
         return jsonify(result)
@@ -69,8 +109,26 @@ def scan_receipt():
 
 @app.route('/receipts', methods=['GET'])
 def list_receipts():
-    """List all stored receipts."""
-    return jsonify(get_all_receipts())
+    """List all stored receipts with optional filtering.
+    
+    Query params:
+        store: Filter by store name
+        date_from: Filter from date (YYYY-MM-DD)
+        date_to: Filter to date (YYYY-MM-DD)
+        label: Filter by category label
+    """
+    store_filter = request.args.get('store')
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    label_filter = request.args.get('label')
+    
+    receipts = get_all_receipts(
+        store_filter=store_filter,
+        date_from=date_from,
+        date_to=date_to,
+        label_filter=label_filter
+    )
+    return jsonify(receipts)
 
 
 @app.route('/receipts/<int:receipt_id>/labels', methods=['PATCH'])
