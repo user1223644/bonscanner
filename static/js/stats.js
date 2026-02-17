@@ -2,6 +2,22 @@ let spendingChart = null;
 let categoryChart = null;
 let labelColorMap = {};
 
+const MAX_SCROLL_RESTORE_DELTA_X = 60;
+const MAX_SCROLL_RESTORE_DELTA_Y = 120;
+
+function restoreScrollNear(targetX, targetY) {
+  const dx = Math.abs(window.scrollX - targetX);
+  const dy = Math.abs(window.scrollY - targetY);
+  if (dx <= MAX_SCROLL_RESTORE_DELTA_X && dy <= MAX_SCROLL_RESTORE_DELTA_Y) {
+    window.scrollTo(targetX, targetY);
+  }
+}
+
+function restoreScrollLater(scrollX, scrollY) {
+  restoreScrollNear(scrollX, scrollY);
+  requestAnimationFrame(() => restoreScrollNear(scrollX, scrollY));
+}
+
 function formatDate(dateStr) {
   if (!dateStr || dateStr === '-') return '-';
   
@@ -264,8 +280,16 @@ async function editCategory(id, el, existingLabels = []) {
   el.replaceWith(input);
   input.focus();
 
+  let finished = false;
+
   input.addEventListener("keydown", async (e) => {
     if (e.key === "Enter" && input.value.trim()) {
+      if (finished) return;
+      finished = true;
+
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+
       const newLabels = input.value
         .split(",")
         .map((l) => l.trim())
@@ -273,49 +297,113 @@ async function editCategory(id, el, existingLabels = []) {
 
       const allLabels = [...new Set([...existingLabels, ...newLabels])];
 
-      const res = await fetch(`${API_URL}/receipts/${id}/labels`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labels: allLabels }),
-      });
-      if (res.ok) {
-        loadReceipts();
-        loadStats();
+      try {
+        await fetch(`${API_URL}/receipts/${id}/labels`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labels: allLabels }),
+        });
+      } catch (err) {
+        console.error(err);
       }
+
+      await Promise.all([loadReceipts(), loadStats()]);
+      restoreScrollLater(scrollX, scrollY);
     } else if (e.key === "Escape") {
-      loadReceipts();
+      if (finished) return;
+      finished = true;
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+      await loadReceipts();
+      restoreScrollLater(scrollX, scrollY);
     }
   });
 
-  input.addEventListener("blur", () => loadReceipts());
+  input.addEventListener("blur", async () => {
+    if (finished) return;
+    finished = true;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    await loadReceipts();
+    restoreScrollLater(scrollX, scrollY);
+  });
 }
 
 function editField(id, field, el) {
+  const cell = el.closest("td") || el.parentElement;
+  if (!cell || cell.querySelector("input.edit-input")) return;
+
   const currentValue = el.textContent.replace(" €", "").trim();
   const input = document.createElement("input");
   input.className = "edit-input";
   input.value = currentValue === "-" ? "" : currentValue;
-  el.replaceWith(input);
+
+  const cellRect = cell.getBoundingClientRect();
+  const anchorRect = el.getBoundingClientRect();
+  const cellStyle = window.getComputedStyle(cell);
+  const cellPaddingRight = Number.parseFloat(cellStyle.paddingRight) || 0;
+
+  const offsetLeft = Math.max(0, anchorRect.left - cellRect.left);
+  const offsetTop = Math.max(0, anchorRect.top - cellRect.top);
+  const inputWidth = Math.max(
+    40,
+    cellRect.width - offsetLeft - cellPaddingRight,
+  );
+  const inputHeight = Math.max(24, anchorRect.height);
+
+  const previousPosition = cell.style.position;
+  cell.style.position = "relative";
+  el.style.visibility = "hidden";
+
+  input.style.position = "absolute";
+  input.style.left = `${offsetLeft}px`;
+  input.style.top = `${offsetTop}px`;
+  input.style.width = `${inputWidth}px`;
+  input.style.height = `${inputHeight}px`;
+  input.style.zIndex = "2";
+
+  cell.appendChild(input);
   input.focus();
   input.select();
 
-  const save = async () => {
-    const payload = {};
-    payload[field] = input.value.trim() || null;
-    await fetch(`${API_URL}/receipts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    loadReceipts();
-    loadStats();
+  let didCleanup = false;
+  let isSaving = false;
+  const cleanup = () => {
+    if (didCleanup) return;
+    didCleanup = true;
+    input.remove();
+    el.style.visibility = "";
+    cell.style.position = previousPosition;
   };
 
-  input.addEventListener("keydown", (e) => {
+  const save = async () => {
+    if (didCleanup || isSaving) return;
+    isSaving = true;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const payload = { [field]: input.value.trim() || null };
+    try {
+      await fetch(`${API_URL}/receipts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+    cleanup();
+    await Promise.all([loadReceipts(), loadStats()]);
+    restoreScrollLater(scrollX, scrollY);
+  };
+
+  input.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") save();
     if (e.key === "Escape") {
-      loadReceipts();
-      loadStats();
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
+      cleanup();
+      await Promise.all([loadReceipts(), loadStats()]);
+      restoreScrollLater(scrollX, scrollY);
     }
   });
   input.addEventListener("blur", save);
@@ -323,6 +411,9 @@ function editField(id, field, el) {
 
 async function deleteLabelStats(id, label, event) {
   event.stopPropagation();
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+
   const receipts = await (await fetch(`${API_URL}/receipts`)).json();
   const receipt = receipts.find((r) => r.id === id);
   if (!receipt) return;
@@ -335,8 +426,8 @@ async function deleteLabelStats(id, label, event) {
     body: JSON.stringify({ labels: newLabels }),
   });
 
-  loadReceipts();
-  loadStats();
+  await Promise.all([loadReceipts(), loadStats()]);
+  restoreScrollLater(scrollX, scrollY);
 }
 
 loadStats().then(() => loadReceipts());

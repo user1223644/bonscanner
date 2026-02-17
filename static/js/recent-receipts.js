@@ -93,23 +93,155 @@
     }
   }
 
-  function renderCategory(labels) {
+  function renderCategories(receiptId, labels) {
     const safeLabels = Array.isArray(labels) ? labels.filter(Boolean) : [];
-    if (safeLabels.length === 0) {
-      return '<span class="cell-muted">-</span>';
-    }
+    const tags = safeLabels
+      .map((label) => {
+        const color = labelColorMap[label] || "#f5a623";
+        const safeLabel = escapeHtml(label);
+        const labelParam = String(label)
+          .replace(/\\/g, "\\\\")
+          .replace(/'/g, "\\'");
+        return `<span class="category-tag" style="background: ${color}20; color: ${color}">${safeLabel} <button class="delete-tag-btn" onclick="deleteLabel(${receiptId}, '${labelParam}', event)" title="Entfernen">×</button></span>`;
+      })
+      .join("");
 
-    const firstLabel = String(safeLabels[0]);
-    const first = escapeHtml(firstLabel);
-    const restCount = safeLabels.length - 1;
-    const more =
-      restCount > 0 ? `<span class="category-more">+${restCount}</span>` : "";
+    const addButton = `<span class="add-category" onclick="addCategory(${receiptId}, this)" title="Labels hinzufügen (kommagetrennt)">+</span>`;
+    return tags + addButton;
+  }
 
-    const color = labelColorMap[firstLabel] || "#f5a623";
-    const title = escapeHtml(safeLabels.join(", "));
-    const style = `background: ${color}20; color: ${color}; border: 1px solid ${color}40;`;
+  function editField(receiptId, field, el) {
+    const cell = el.closest("td") || el.parentElement;
+    if (!cell || cell.querySelector("input.edit-input")) return;
 
-    return `<span title="${title}"><span class="category-chip" style="${style}">${first}</span>${more}</span>`;
+    const currentValue = el.textContent.replace(" €", "").trim();
+    const input = document.createElement("input");
+    input.className = "edit-input";
+    input.value = currentValue === "-" ? "" : currentValue;
+
+    const cellRect = cell.getBoundingClientRect();
+    const anchorRect = el.getBoundingClientRect();
+    const cellStyle = window.getComputedStyle(cell);
+    const cellPaddingRight = Number.parseFloat(cellStyle.paddingRight) || 0;
+
+    const offsetLeft = Math.max(0, anchorRect.left - cellRect.left);
+    const offsetTop = Math.max(0, anchorRect.top - cellRect.top);
+    const inputWidth = Math.max(
+      40,
+      cellRect.width - offsetLeft - cellPaddingRight,
+    );
+    const inputHeight = Math.max(24, anchorRect.height);
+
+    const previousPosition = cell.style.position;
+    cell.style.position = "relative";
+    el.style.visibility = "hidden";
+
+    input.style.position = "absolute";
+    input.style.left = `${offsetLeft}px`;
+    input.style.top = `${offsetTop}px`;
+    input.style.width = `${inputWidth}px`;
+    input.style.height = `${inputHeight}px`;
+    input.style.zIndex = "2";
+
+    cell.appendChild(input);
+    input.focus();
+    input.select();
+
+    let didCleanup = false;
+    let isSaving = false;
+    const cleanup = () => {
+      if (didCleanup) return;
+      didCleanup = true;
+      input.remove();
+      el.style.visibility = "";
+      cell.style.position = previousPosition;
+    };
+
+    const save = async () => {
+      if (didCleanup || isSaving) return;
+      isSaving = true;
+      const payload = { [field]: input.value.trim() || null };
+      try {
+        await fetch(`${API_URL}/receipts/${receiptId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) {
+        console.error(e);
+      }
+      cleanup();
+      refreshRecentReceipts();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") {
+        cleanup();
+        refreshRecentReceipts();
+      }
+    });
+    input.addEventListener("blur", save);
+  }
+
+  function addCategory(receiptId, el) {
+    const row = document.querySelector(`tr[data-id="${receiptId}"]`);
+    const labelsData = row ? JSON.parse(row.dataset.labels || "[]") : [];
+
+    const input = document.createElement("input");
+    input.className = "edit-input";
+    input.style.width = "150px";
+    input.placeholder = "Labels (kommagetrennt)";
+    el.replaceWith(input);
+    input.focus();
+
+    let finished = false;
+    const save = async () => {
+      if (finished) return;
+      finished = true;
+
+      const value = input.value.trim();
+      if (value) {
+        const newLabels = value
+          .split(",")
+          .map((l) => l.trim())
+          .filter((l) => l);
+
+        const allLabels = [...new Set([...labelsData, ...newLabels])];
+
+        await fetch(`${API_URL}/receipts/${receiptId}/labels`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labels: allLabels }),
+        });
+      }
+      refreshRecentReceipts();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") {
+        finished = true;
+        refreshRecentReceipts();
+      }
+    });
+    input.addEventListener("blur", save);
+  }
+
+  async function deleteLabel(receiptId, label, event) {
+    event.stopPropagation();
+    const row = document.querySelector(`tr[data-id="${receiptId}"]`);
+    const labelsData = row ? JSON.parse(row.dataset.labels || "[]") : [];
+
+    const newLabels = labelsData.filter((l) => l !== label);
+
+    await fetch(`${API_URL}/receipts/${receiptId}/labels`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ labels: newLabels }),
+    });
+
+    refreshRecentReceipts();
   }
 
   async function refreshRecentReceipts() {
@@ -136,20 +268,21 @@
 
       tbody.innerHTML = recent
         .map((r) => {
-          const date = escapeHtml(formatDate(r?.date));
-          const store = escapeHtml(r?.store_name || "-");
-          const category = renderCategory(r?.labels);
+          const receiptId = r?.id;
+          const labelsJson = escapeHtml(JSON.stringify(r?.labels || []));
+
+          const dateText = escapeHtml(formatDate(r?.date));
+          const storeText = escapeHtml(r?.store_name || "-");
+          const categoriesHtml = renderCategories(receiptId, r?.labels);
+
           const amountValue = formatAmount(r?.total);
-          const amount =
-            amountValue === "-"
-              ? '<span class="cell-muted">-</span>'
-              : escapeHtml(amountValue);
+          const amount = escapeHtml(amountValue);
 
           return `
-            <tr>
-              <td>${date}</td>
-              <td title="${store}">${store}</td>
-              <td>${category}</td>
+            <tr data-id="${receiptId}" data-labels="${labelsJson}">
+              <td><span class="editable" onclick="editField(${receiptId}, 'date', this)">${dateText}</span></td>
+              <td title="${storeText}"><span class="editable" onclick="editField(${receiptId}, 'store_name', this)">${storeText}</span></td>
+              <td>${categoriesHtml}</td>
               <td class="recent-amount">${amount}</td>
             </tr>
           `;
@@ -162,5 +295,8 @@
   }
 
   window.refreshRecentReceipts = refreshRecentReceipts;
+  window.editField = editField;
+  window.addCategory = addCategory;
+  window.deleteLabel = deleteLabel;
   document.addEventListener("DOMContentLoaded", refreshRecentReceipts);
 })();

@@ -452,6 +452,10 @@
       }
 
       .category-input {
+        -webkit-appearance: none;
+        appearance: none;
+        font: inherit;
+        line-height: inherit;
         padding: 0.25rem 0.5rem;
         border: 1px solid var(--accent);
         border-radius: 4px;
@@ -460,12 +464,16 @@
         outline: none;
         background: var(--bg-card);
         color: var(--text-primary);
+        margin: 0;
+        vertical-align: middle;
       }
 
       .editable {
         cursor: pointer;
         padding: 0.15rem 0.35rem;
         border-radius: 4px;
+        display: inline-block;
+        vertical-align: middle;
         transition: background 0.2s;
       }
       .editable:hover {
@@ -473,12 +481,22 @@
       }
 
       .edit-input {
+        -webkit-appearance: none;
+        appearance: none;
+        box-sizing: border-box;
+        font: inherit;
+        line-height: inherit;
         background: var(--bg-primary);
-        border: 1px solid var(--accent);
-        padding: 0.25rem 0.5rem;
+        border: 0;
+        box-shadow: 0 0 0 1px var(--accent);
+        padding: 0.15rem 0.35rem;
         border-radius: 4px;
         color: var(--text-primary);
-        font-size: inherit;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        margin: 0;
+        vertical-align: middle;
       }
       .edit-input:focus {
         outline: none;

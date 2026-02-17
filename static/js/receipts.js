@@ -276,28 +276,75 @@ function renderCategories(id, labels) {
 }
 
 function editField(id, field, el) {
+  const cell = el.closest("td") || el.parentElement;
+  if (!cell || cell.querySelector("input.edit-input")) return;
+
   const currentValue = el.textContent.replace(" €", "").trim();
   const input = document.createElement("input");
   input.className = "edit-input";
   input.value = currentValue === "-" ? "" : currentValue;
-  el.replaceWith(input);
+
+  const cellRect = cell.getBoundingClientRect();
+  const anchorRect = el.getBoundingClientRect();
+  const cellStyle = window.getComputedStyle(cell);
+  const cellPaddingRight = Number.parseFloat(cellStyle.paddingRight) || 0;
+
+  const offsetLeft = Math.max(0, anchorRect.left - cellRect.left);
+  const offsetTop = Math.max(0, anchorRect.top - cellRect.top);
+  const inputWidth = Math.max(
+    40,
+    cellRect.width - offsetLeft - cellPaddingRight,
+  );
+  const inputHeight = Math.max(24, anchorRect.height);
+
+  const previousPosition = cell.style.position;
+  cell.style.position = "relative";
+  el.style.visibility = "hidden";
+
+  input.style.position = "absolute";
+  input.style.left = `${offsetLeft}px`;
+  input.style.top = `${offsetTop}px`;
+  input.style.width = `${inputWidth}px`;
+  input.style.height = `${inputHeight}px`;
+  input.style.zIndex = "2";
+
+  cell.appendChild(input);
   input.focus();
   input.select();
 
+  let didCleanup = false;
+  let isSaving = false;
+  const cleanup = () => {
+    if (didCleanup) return;
+    didCleanup = true;
+    input.remove();
+    el.style.visibility = "";
+    cell.style.position = previousPosition;
+  };
+
   const save = async () => {
-    const payload = {};
-    payload[field] = input.value.trim() || null;
-    await fetch(`${API_URL}/receipts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    if (didCleanup || isSaving) return;
+    isSaving = true;
+    const payload = { [field]: input.value.trim() || null };
+    try {
+      await fetch(`${API_URL}/receipts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+    cleanup();
     loadReceipts();
   };
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") save();
-    if (e.key === "Escape") loadReceipts();
+    if (e.key === "Escape") {
+      cleanup();
+      loadReceipts();
+    }
   });
   input.addEventListener("blur", save);
 }
@@ -313,9 +360,15 @@ function addCategory(id, el) {
   el.replaceWith(input);
   input.focus();
 
+  let finished = false;
+
   const save = async () => {
-    if (input.value.trim()) {
-      const newLabels = input.value
+    if (finished) return;
+    finished = true;
+
+    const value = input.value.trim();
+    if (value) {
+      const newLabels = value
         .split(",")
         .map((l) => l.trim())
         .filter((l) => l);
@@ -333,7 +386,10 @@ function addCategory(id, el) {
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") save();
-    if (e.key === "Escape") loadReceipts();
+    if (e.key === "Escape") {
+      finished = true;
+      loadReceipts();
+    }
   });
   input.addEventListener("blur", save);
 }
