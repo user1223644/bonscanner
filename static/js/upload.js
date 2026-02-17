@@ -114,6 +114,7 @@ async function handleFile(file) {
     const data = await response.json();
     if (data.error) throw new Error(data.error);
     displayResults(data);
+    window.refreshRecentReceipts?.();
   } catch (error) {
     results.innerHTML = `<div class="error">Fehler: ${error.message}</div>`;
   }

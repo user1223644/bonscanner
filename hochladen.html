@@ -24,6 +24,7 @@
         --text-secondary: #666;
         --text-muted: #999;
         --border-color: #eee;
+        --border-light: #f0f0f0;
         --accent: #f5a623;
         --accent-bg: #fff8f0;
       }
@@ -36,6 +37,7 @@
         --text-secondary: #8b949e;
         --text-muted: #6e7681;
         --border-color: #30363d;
+        --border-light: #21262d;
         --accent: #f5a623;
         --accent-bg: rgba(245, 166, 35, 0.15);
       }
@@ -145,6 +147,18 @@
         font-size: 1.5rem;
         font-weight: 600;
         margin-bottom: 2rem;
+      }
+
+      /* Split Layout */
+      .split-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+        gap: 2rem;
+        align-items: start;
+      }
+
+      .upload-column {
+        min-width: 0;
       }
 
       .upload-area {
@@ -375,12 +389,166 @@
         background: var(--border-color);
       }
 
+      /* Letzte Belege Panel */
+      .recent-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        position: sticky;
+        top: 2rem;
+      }
+
+      .recent-header {
+        padding: 1rem 1rem 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .recent-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+      }
+
+      .recent-link {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-decoration: none;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .recent-link:hover {
+        background: var(--bg-hover);
+        color: var(--accent);
+      }
+
+      .recent-table-wrap {
+        max-height: calc(100vh - 220px);
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      .recent-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      .recent-table th {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        font-weight: 500;
+        background: var(--bg-hover);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .recent-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border-light);
+        font-size: 0.9rem;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .recent-table th:last-child {
+        text-align: right;
+      }
+      .recent-table td:first-child {
+        white-space: nowrap;
+      }
+      .recent-table tbody tr:hover td {
+        background: var(--bg-hover);
+      }
+      .recent-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .recent-table td:nth-child(2) {
+        white-space: nowrap;
+      }
+
+      .recent-empty {
+        text-align: center;
+        padding: 2.5rem 1rem;
+        color: var(--text-muted);
+      }
+
+      .recent-amount {
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .category-chip {
+        display: inline-flex;
+        align-items: center;
+        background: var(--accent-bg);
+        color: var(--accent);
+        border: 1px solid transparent;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+        max-width: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .category-more {
+        margin-left: 0.4rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+
+      .cell-muted {
+        color: var(--text-muted);
+      }
+
+      /* Make upload column fill available space in split layout */
+      .split-layout .upload-area,
+      .split-layout .preview-container,
+      .split-layout .label-section,
+      .split-layout .results {
+        max-width: 100%;
+      }
+
       @media (max-width: 768px) {
         .sidebar {
           display: none;
         }
         .main {
           margin-left: 0;
+        }
+      }
+
+      @media (max-width: 1200px) {
+        .split-layout {
+          grid-template-columns: 1fr;
+        }
+        .recent-card {
+          position: static;
+        }
+        .recent-table-wrap {
+          max-height: none;
         }
       }
     </style>
@@ -431,36 +599,68 @@
     <main class="main">
       <h1>Beleg hochladen</h1>
 
-      <div class="upload-area" id="upload-area">
-        <input type="file" id="file-input" accept="image/*" />
-        <div class="upload-icon">↑</div>
-        <p class="upload-text">Datei hier ablegen oder klicken</p>
-        <p class="upload-hint">Unterstützt: JPG, PNG, WEBP</p>
-      </div>
+      <div class="split-layout">
+        <section class="upload-column">
+          <div class="upload-area" id="upload-area">
+            <input type="file" id="file-input" accept="image/*" />
+            <div class="upload-icon">↑</div>
+            <p class="upload-text">Datei hier ablegen oder klicken</p>
+            <p class="upload-hint">Unterstützt: JPG, PNG, WEBP</p>
+          </div>
 
-      <div class="preview-container" id="preview-container">
-        <img id="preview-img" class="preview-img" src="" alt="Vorschau" />
-      </div>
+          <div class="preview-container" id="preview-container">
+            <img id="preview-img" class="preview-img" src="" alt="Vorschau" />
+          </div>
 
-      <div class="label-section" id="label-section">
-        <h3>Kategorie</h3>
-        <div class="label-input-wrapper">
-          <div id="selected-labels"></div>
-          <input
-            type="text"
-            class="label-input"
-            id="label-input"
-            placeholder="Kategorie eingeben..."
-          />
-        </div>
-        <div class="label-suggestions" id="label-suggestions"></div>
-      </div>
+          <div class="label-section" id="label-section">
+            <h3>Kategorie</h3>
+            <div class="label-input-wrapper">
+              <div id="selected-labels"></div>
+              <input
+                type="text"
+                class="label-input"
+                id="label-input"
+                placeholder="Kategorie eingeben..."
+              />
+            </div>
+            <div class="label-suggestions" id="label-suggestions"></div>
+          </div>
 
-      <div class="results" id="results"></div>
+          <div class="results" id="results"></div>
+        </section>
+
+        <aside class="recent-column">
+          <div class="recent-card">
+            <div class="recent-header">
+              <div class="recent-title">Letzte Belege</div>
+              <a class="recent-link" href="belege.html">Alle anzeigen</a>
+            </div>
+            <div class="recent-table-wrap" aria-label="Letzte Belege">
+              <table class="recent-table">
+                <thead>
+                  <tr>
+                    <th>Datum</th>
+                    <th>Geschäft</th>
+                    <th>Kategorie</th>
+                    <th>Betrag</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-receipts-body">
+                  <tr>
+                    <td colspan="4" class="recent-empty">Lade Belege...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </aside>
+      </div>
     </main>
 
+    <script src="static/js/constants.js" defer></script>
     <script src="static/js/api.js" defer></script>
     <script src="static/js/theme.js" defer></script>
+    <script src="static/js/recent-receipts.js" defer></script>
     <script src="static/js/upload.js" defer></script>
   </body>
 </html>
