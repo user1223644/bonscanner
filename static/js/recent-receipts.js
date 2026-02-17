@@ -160,18 +160,32 @@
     const save = async () => {
       if (didCleanup || isSaving) return;
       isSaving = true;
-      const payload = { [field]: input.value.trim() || null };
+
+      const rawValue = input.value.trim();
+      const payload = { [field]: rawValue || null };
+      let ok = true;
       try {
-        await fetch(`${API_URL}/receipts/${receiptId}`, {
+        const res = await fetch(`${API_URL}/receipts/${receiptId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        ok = res.ok;
       } catch (e) {
+        ok = false;
         console.error(e);
       }
+
+      if (ok) {
+        let displayValue = rawValue || "-";
+        if (field === "date" && rawValue) displayValue = formatDate(rawValue);
+
+        el.textContent = displayValue;
+        if (field === "store_name") cell.title = displayValue;
+      }
+
       cleanup();
-      refreshRecentReceipts();
+      if (!ok) refreshRecentReceipts();
     };
 
     input.addEventListener("keydown", (e) => {
@@ -248,8 +262,13 @@
     const tbody = document.getElementById("recent-receipts-body");
     if (!tbody) return;
 
-    tbody.innerHTML =
-      '<tr><td colspan="4" class="recent-empty">Lade Belege...</td></tr>';
+    const hasRows = Boolean(tbody.querySelector("tr[data-id]"));
+    if (!hasRows) {
+      tbody.innerHTML =
+        '<tr><td colspan="4" class="recent-empty">Lade Belege...</td></tr>';
+    } else {
+      tbody.classList.add("is-refreshing");
+    }
 
     try {
       await loadLabelColorMap();
@@ -291,6 +310,8 @@
     } catch (e) {
       tbody.innerHTML =
         '<tr><td colspan="4" class="recent-empty">Fehler beim Laden</td></tr>';
+    } finally {
+      tbody.classList.remove("is-refreshing");
     }
   }
 

@@ -622,6 +622,14 @@
         border-bottom: none;
       }
 
+      .recent-table tbody {
+        transition: opacity 0.15s ease;
+      }
+
+      .recent-table tbody.is-refreshing {
+        opacity: 0.65;
+      }
+
       .recent-table td:nth-child(2) {
         white-space: nowrap;
       }
