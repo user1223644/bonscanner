@@ -103,7 +103,12 @@ function renderRules(rules) {
           <select class="rule-select rule-type">${buildRuleTypeOptions(rule.rule_type)}</select>
           <select class="rule-select rule-match">${buildMatchOptions(rule.match_type)}</select>
           <input type="text" class="rule-input rule-pattern" value="${escapeHtml(rule.pattern)}" />
-          <input type="number" class="rule-input rule-priority" value="${rule.priority ?? 100}" />
+          <input
+            type="text"
+            inputmode="numeric"
+            class="rule-input rule-priority"
+            value="${rule.priority ?? 100}"
+          />
           <input type="checkbox" class="rule-active" ${rule.is_active ? "checked" : ""} />
           <div class="rule-actions">
             <button class="btn-small save-rule">Speichern</button>
