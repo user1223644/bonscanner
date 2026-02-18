@@ -71,6 +71,111 @@ def json_loads_list(value):
     return json.loads(value)
 
 
+def normalize_labels(labels):
+    """Normalize label list (trim, dedupe, drop empties)."""
+    if not labels:
+        return []
+    cleaned = [str(label).strip() for label in labels if str(label).strip()]
+    return list(dict.fromkeys(cleaned))
+
+
+def ensure_categories(conn, labels):
+    """Ensure categories exist for the provided labels."""
+    label_list = normalize_labels(labels)
+    if not label_list:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    for label in label_list:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO categories (name, created_at, updated_at)
+            VALUES (?, ?, ?)
+            """,
+            (label, now, now),
+        )
+
+
+def get_category_ids(conn, labels):
+    """Return mapping of label -> category_id for known categories."""
+    label_list = normalize_labels(labels)
+    if not label_list:
+        return {}
+    placeholders = ", ".join("?" for _ in label_list)
+    rows = conn.execute(
+        f"""
+        SELECT id, name
+        FROM categories
+        WHERE name IN ({placeholders}) AND deleted_at IS NULL
+        """,
+        label_list,
+    ).fetchall()
+    return {row["name"]: row["id"] for row in rows}
+
+
+def sync_receipt_categories(conn, receipt_id, labels, source=None):
+    """Sync receipt_categories rows to match provided labels."""
+    label_list = normalize_labels(labels)
+
+    existing = conn.execute(
+        """
+        SELECT c.id, c.name
+        FROM receipt_categories rc
+        JOIN categories c ON rc.category_id = c.id
+        WHERE rc.receipt_id = ?
+        """,
+        (receipt_id,),
+    ).fetchall()
+    existing_by_name = {row["name"]: row["id"] for row in existing}
+
+    if not label_list and not existing_by_name:
+        return
+
+    ensure_categories(conn, label_list)
+    category_ids = get_category_ids(conn, label_list)
+
+    desired_ids = {category_ids[name] for name in label_list if name in category_ids}
+    existing_ids = set(existing_by_name.values())
+
+    to_remove = existing_ids - desired_ids
+    if to_remove:
+        placeholders = ", ".join("?" for _ in to_remove)
+        conn.execute(
+            f"""
+            DELETE FROM receipt_categories
+            WHERE receipt_id = ? AND category_id IN ({placeholders})
+            """,
+            (receipt_id, *to_remove),
+        )
+
+    to_add = desired_ids - existing_ids
+    if to_add:
+        now = datetime.now(timezone.utc).isoformat()
+        for category_id in to_add:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO receipt_categories
+                    (receipt_id, category_id, source, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (receipt_id, category_id, source, now),
+            )
+
+
+def backfill_receipt_categories(conn):
+    """Populate categories/receipt_categories from legacy receipt labels."""
+    existing = conn.execute(
+        "SELECT COUNT(*) as count FROM receipt_categories"
+    ).fetchone()
+    if existing["count"] > 0:
+        return
+    rows = conn.execute(
+        "SELECT id, labels FROM receipts WHERE labels IS NOT NULL AND labels != '[]'"
+    ).fetchall()
+    for row in rows:
+        labels = json_loads_list(row["labels"])
+        sync_receipt_categories(conn, row["id"], labels, source="legacy")
+
+
 def ensure_columns(conn, columns):
     """Add missing columns to receipts table."""
     existing_cols = {
@@ -160,11 +265,68 @@ def _run_migrations(conn):
         "CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt_id ON receipt_items(receipt_id)"
     )
 
+    # Categories and mappings for future extensibility
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            deleted_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS receipt_categories (
+            receipt_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            source TEXT,
+            created_at TEXT,
+            PRIMARY KEY (receipt_id, category_id),
+            FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_categories_receipt_id ON receipt_categories(receipt_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_categories_category_id ON receipt_categories(category_id)"
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS receipt_item_categories (
+            item_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            allocation_amount REAL,
+            allocation_ratio REAL,
+            source TEXT,
+            created_at TEXT,
+            PRIMARY KEY (item_id, category_id),
+            FOREIGN KEY (item_id) REFERENCES receipt_items(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_item_categories_item_id ON receipt_item_categories(item_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_item_categories_category_id ON receipt_item_categories(category_id)"
+    )
+
     # Run migration to move JSON items to receipt_items table
     migrate_items_to_table(conn)
 
     # Add placeholder items for receipts with totals but no items
     add_placeholder_items_for_existing_receipts(conn)
+
+    # Backfill categories from legacy receipt labels
+    backfill_receipt_categories(conn)
 
     conn.commit()
 
@@ -321,6 +483,8 @@ def save_receipt(result, labels=None):
                 """,
                 (receipt_id, "Unbekannte Artikel", 1.0, total_value)
             )
+
+        sync_receipt_categories(conn, receipt_id, labels, source=None)
         
         conn.commit()
 
@@ -333,6 +497,7 @@ def update_receipt_labels(receipt_id, labels):
             "UPDATE receipts SET labels = ? WHERE id = ?",
             (labels_json, receipt_id)
         )
+        sync_receipt_categories(conn, receipt_id, labels, source="manual")
         conn.commit()
 
 
@@ -341,12 +506,14 @@ def update_receipt(receipt_id, updates):
     allowed_fields = ['store_name', 'date', 'total', 'labels']
     set_parts = []
     values = []
+    label_updates = None
     
     for field in allowed_fields:
         if field in updates:
             if field == 'labels':
                 set_parts.append("labels = ?")
-                values.append(json_dumps_list(updates['labels'] or []))
+                label_updates = updates['labels'] or []
+                values.append(json_dumps_list(label_updates))
             elif field == 'total':
                 set_parts.append("total = ?")
                 values.append(parse_total_to_float(updates['total']))
@@ -363,6 +530,8 @@ def update_receipt(receipt_id, updates):
             f"UPDATE receipts SET {', '.join(set_parts)} WHERE id = ?",
             values
         )
+        if label_updates is not None:
+            sync_receipt_categories(conn, receipt_id, label_updates, source="manual")
         conn.commit()
     return True
 
