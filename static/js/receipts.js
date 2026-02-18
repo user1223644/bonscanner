@@ -1,6 +1,7 @@
 let labelColorMap = {};
 let currentPage = 1;
 const pageSize = 25;
+let itemCache = {};
 
 function formatDate(dateStr) {
   if (!dateStr || dateStr === '-') return '-';
@@ -93,6 +94,13 @@ async function loadReceipts() {
     if (currentPage > totalPages) currentPage = totalPages;
     const tbody = document.getElementById("receipts-body");
 
+    itemCache = {};
+    receipts.forEach((r) => {
+      (r.items || []).forEach((item) => {
+        if (item.id) itemCache[item.id] = { ...item, receipt_id: r.id };
+      });
+    });
+
     if (receipts.length === 0) {
       tbody.innerHTML =
         '<tr><td colspan="5" class="empty-state">Keine Belege vorhanden</td></tr>';
@@ -133,6 +141,12 @@ async function loadReceipts() {
                   <button onclick="saveNewItem(${r.id})" class="save-btn">Speichern</button>
                   <button onclick="cancelAddItem(${r.id})" class="cancel-btn">Abbrechen</button>
                 </div>
+              </div>
+              <div class="detail-section">
+                <div class="detail-header">
+                  <strong>Steuern:</strong>
+                </div>
+                <div class="taxes-list">${renderTaxes(r.taxes)}</div>
               </div>
             </div>
           </td>
@@ -239,9 +253,14 @@ function renderItemsDetailEditable(receiptId, items) {
       .map(
         (item) =>
           `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 500;">${item.name || "-"}</span>
+            <div>
+              <div style="font-weight: 500;">${item.name || "-"}</div>
+              ${formatItemMeta(item)}
+              ${renderItemCategories(item)}
+            </div>
             <div>
               <span style="color: var(--text-muted); margin-right: 1rem;">${item.price || ""}</span>
+              <button class="item-category-btn" onclick="editItemCategories(${receiptId}, ${item.id})" title="Kategorien">Kategorien</button>
               <button class="delete-item-btn" onclick="deleteItem(${receiptId}, ${item.id})" title="Löschen">×</button>
             </div>
           </div>`,
@@ -249,6 +268,57 @@ function renderItemsDetailEditable(receiptId, items) {
       .join("") +
     "</div>"
   );
+}
+
+function formatItemMeta(item) {
+  const qty = item.quantity && item.quantity !== 1 ? item.quantity : null;
+  const unit = item.unit ? ` ${item.unit}` : "";
+  const unitPrice =
+    typeof item.unit_price === "number"
+      ? `${item.unit_price.toFixed(2)} €`
+      : null;
+  const parts = [];
+  if (qty) parts.push(`${qty}${unit}`);
+  if (unitPrice) parts.push(unitPrice);
+  if (parts.length === 0 && item.is_discount) {
+    parts.push("Rabatt");
+  }
+  if (parts.length === 0) return "";
+  return `<div class="item-meta">${parts.join(" × ")}</div>`;
+}
+
+function renderItemCategories(item) {
+  const categories = item.categories || [];
+  if (!categories.length) {
+    return '<div class="item-categories"><span class="category-tag none">Keine Kategorien</span></div>';
+  }
+  const tags = categories
+    .map((cat) => {
+      const color = cat.category_color || labelColorMap[cat.category_name] || "#f5a623";
+      let suffix = "";
+      if (cat.allocation_ratio) {
+        suffix = ` (${Math.round(cat.allocation_ratio * 100)}%)`;
+      } else if (cat.allocation_amount) {
+        suffix = ` (${cat.allocation_amount.toFixed(2)} €)`;
+      }
+      return `<span class="category-tag" style="background: ${color}20; color: ${color}">${cat.category_name}${suffix}</span>`;
+    })
+    .join("");
+  return `<div class="item-categories">${tags}</div>`;
+}
+
+function renderTaxes(taxes) {
+  if (!taxes || taxes.length === 0) {
+    return '<span style="color: var(--text-muted);">Keine Steuerangaben</span>';
+  }
+  return taxes
+    .map((tax) => {
+      const rate = tax.tax_rate ? `${tax.tax_rate}%` : "";
+      const amount =
+        typeof tax.tax_amount === "number" ? `${tax.tax_amount.toFixed(2)} €` : "";
+      return `<div>${rate} ${amount}</div>`;
+    })
+    .join("");
 }
 
 function showAddItemForm(receiptId) {
@@ -304,6 +374,68 @@ async function deleteItem(receiptId, itemId) {
     }
   } catch (e) {
     alert("Fehler beim Löschen des Artikels");
+  }
+}
+
+function parseCategoryAllocations(value) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const bits = entry.split(/[:=]/).map((p) => p.trim());
+      const name = bits[0];
+      const raw = bits[1];
+      const allocation = { category_name: name, source: "manual" };
+      if (!raw) return allocation;
+      const num = Number(raw.replace("%", "").replace(",", "."));
+      if (Number.isFinite(num)) {
+        if (raw.includes("%")) {
+          allocation.allocation_ratio = num / 100;
+        } else if (num <= 1) {
+          allocation.allocation_ratio = num;
+        } else {
+          allocation.allocation_amount = num;
+        }
+      }
+      return allocation;
+    });
+}
+
+async function editItemCategories(receiptId, itemId) {
+  const item = itemCache[itemId];
+  const existing = (item?.categories || [])
+    .map((cat) => {
+      if (cat.allocation_ratio) {
+        return `${cat.category_name}=${Math.round(cat.allocation_ratio * 100)}%`;
+      }
+      if (cat.allocation_amount) {
+        return `${cat.category_name}=${cat.allocation_amount}`;
+      }
+      return cat.category_name;
+    })
+    .join(", ");
+  const input = prompt(
+    "Kategorien (z.B. Lebensmittel=60%, Haushalt=40%)",
+    existing,
+  );
+  if (input === null) return;
+  const categories = parseCategoryAllocations(input);
+  try {
+    const res = await fetch(
+      `${API_URL}/receipts/${receiptId}/items/${itemId}/categories`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories }),
+      },
+    );
+    if (res.ok) {
+      await loadReceipts();
+    }
+  } catch (e) {
+    alert("Fehler beim Speichern der Kategorien");
   }
 }
 

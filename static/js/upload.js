@@ -216,6 +216,9 @@ function displayResults(data) {
   const itemsHtml = data.items?.length
     ? `<div class="result-section"><h3>Artikel</h3><ul class="items-list">${data.items.map((i) => `<li><span>${i.name}</span><span class="item-price">${i.price}</span></li>`).join("")}</ul></div>`
     : "";
+  const taxesHtml = data.taxes?.length
+    ? `<div class="result-section"><h3>Steuern</h3><ul class="items-list">${data.taxes.map((t) => `<li><span>${t.tax_rate || ""}%</span><span class="item-price">${t.tax_amount?.toFixed ? t.tax_amount.toFixed(2) : t.tax_amount} €</span></li>`).join("")}</ul></div>`
+    : "";
   results.innerHTML = `
     <div class="success-toast" role="status" aria-live="polite">
       <div class="success-icon" aria-hidden="true">
@@ -232,6 +235,7 @@ function displayResults(data) {
     <div class="result-section"><h3>Datum</h3><p class="result-value">${data.date || "Nicht gefunden"}</p></div>
     <div class="result-section"><h3>Gesamtsumme</h3><p class="result-value">${data.total || "Nicht gefunden"}</p></div>
     ${itemsHtml}
+    ${taxesHtml}
     <div class="result-section"><h3>OCR-Rohtext</h3><pre class="raw-text">${data.raw_text || "Kein Text erkannt"}</pre></div>
   `;
 }

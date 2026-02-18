@@ -21,7 +21,8 @@ from database import (
     create_category, update_category, delete_category,
     get_category_rules, create_category_rule, update_category_rule,
     delete_category_rule, seed_default_category_rules,
-    export_backup_data, create_db_backup_file, import_backup_data
+    export_backup_data, create_db_backup_file, import_backup_data,
+    set_receipt_item_categories
 )
 from extractor import extract_receipt_data
 
@@ -459,6 +460,19 @@ def remove_item(receipt_id, item_id):
     if not success:
         return jsonify({'error': 'Item not found'}), 404
     
+    items = get_receipt_items(receipt_id)
+    return jsonify({'success': True, 'items': items})
+
+
+@app.route('/receipts/<int:receipt_id>/items/<int:item_id>/categories', methods=['PATCH'])
+def update_item_categories(receipt_id, item_id):
+    """Update categories for a receipt item."""
+    data = request.get_json() or {}
+    categories = data.get('categories', [])
+    try:
+        set_receipt_item_categories(item_id, categories)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
     items = get_receipt_items(receipt_id)
     return jsonify({'success': True, 'items': items})
 

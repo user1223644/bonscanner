@@ -630,6 +630,26 @@ def save_receipt(result, labels=None):
                 (receipt_id, "Unbekannte Artikel", 1.0, total_value)
             )
 
+        taxes = result.get('taxes') or []
+        if taxes:
+            now = datetime.now(timezone.utc).isoformat()
+            for tax in taxes:
+                conn.execute(
+                    """
+                    INSERT INTO receipt_taxes
+                        (receipt_id, tax_rate, tax_amount, taxable_amount, source, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        receipt_id,
+                        tax.get("tax_rate"),
+                        tax.get("tax_amount"),
+                        tax.get("taxable_amount"),
+                        "ocr",
+                        now,
+                    ),
+                )
+
         sync_receipt_categories(conn, receipt_id, labels, source=None)
         
         conn.commit()
@@ -847,7 +867,7 @@ def get_all_receipts(
             placeholders = ", ".join("?" for _ in receipt_ids)
             all_items = conn.execute(
                 f"""
-                SELECT receipt_id, name, quantity, unit_price, line_total,
+                SELECT id, receipt_id, name, quantity, unit_price, line_total,
                        unit, currency, is_discount, tax_rate, tax_amount
                 FROM receipt_items
                 WHERE receipt_id IN ({placeholders})
@@ -855,8 +875,43 @@ def get_all_receipts(
                 """,
                 receipt_ids,
             ).fetchall()
+            item_ids = [row["id"] for row in all_items]
+            categories_by_item = {}
+            if item_ids:
+                item_placeholders = ", ".join("?" for _ in item_ids)
+                cat_rows = conn.execute(
+                    f"""
+                    SELECT ric.item_id, ric.allocation_amount, ric.allocation_ratio,
+                           c.id as category_id, c.name as category_name, c.color as category_color
+                    FROM receipt_item_categories ric
+                    JOIN categories c ON ric.category_id = c.id
+                    WHERE ric.item_id IN ({item_placeholders}) AND c.deleted_at IS NULL
+                    """,
+                    item_ids,
+                ).fetchall()
+                for row in cat_rows:
+                    categories_by_item.setdefault(row["item_id"], []).append(
+                        {
+                            "category_id": row["category_id"],
+                            "category_name": row["category_name"],
+                            "category_color": row["category_color"],
+                            "allocation_amount": row["allocation_amount"],
+                            "allocation_ratio": row["allocation_ratio"],
+                        }
+                    )
+            tax_rows = conn.execute(
+                f"""
+                SELECT receipt_id, tax_rate, tax_amount, taxable_amount, source, created_at
+                FROM receipt_taxes
+                WHERE receipt_id IN ({placeholders})
+                ORDER BY id
+                """,
+                receipt_ids,
+            ).fetchall()
         else:
             all_items = []
+            categories_by_item = {}
+            tax_rows = []
 
     # Group items by receipt_id
     items_by_receipt = {}
@@ -867,6 +922,7 @@ def get_all_receipts(
 
         # Format item like the original JSON structure
         item_dict = {
+            'id': item['id'],
             'name': item['name'],
             'price': f"{item['line_total']:.2f} €" if item['line_total'] else '',
             'quantity': item['quantity'],
@@ -877,8 +933,22 @@ def get_all_receipts(
             'is_discount': bool(item['is_discount']) if item['is_discount'] is not None else None,
             'tax_rate': item['tax_rate'],
             'tax_amount': item['tax_amount'],
+            'categories': categories_by_item.get(item['id'], []),
         }
         items_by_receipt[receipt_id].append(item_dict)
+
+    taxes_by_receipt = {}
+    for tax in tax_rows:
+        receipt_id = tax["receipt_id"]
+        taxes_by_receipt.setdefault(receipt_id, []).append(
+            {
+                "tax_rate": tax["tax_rate"],
+                "tax_amount": tax["tax_amount"],
+                "taxable_amount": tax["taxable_amount"],
+                "source": tax["source"],
+                "created_at": tax["created_at"],
+            }
+        )
 
     receipts = [
         {
@@ -896,6 +966,7 @@ def get_all_receipts(
             'labels': json_loads_list(row['labels']),
             'raw_text': row['raw_text'],
             'created_at': row['created_at'],
+            'taxes': taxes_by_receipt.get(row['id'], []),
         }
         for row in rows
     ]
@@ -1463,6 +1534,31 @@ def get_receipt_items(receipt_id):
             """,
             (receipt_id,)
         ).fetchall()
+
+        item_ids = [row["id"] for row in rows]
+        categories_by_item = {}
+        if item_ids:
+            placeholders = ", ".join("?" for _ in item_ids)
+            cat_rows = conn.execute(
+                f"""
+                SELECT ric.item_id, ric.allocation_amount, ric.allocation_ratio,
+                       c.id as category_id, c.name as category_name, c.color as category_color
+                FROM receipt_item_categories ric
+                JOIN categories c ON ric.category_id = c.id
+                WHERE ric.item_id IN ({placeholders}) AND c.deleted_at IS NULL
+                """,
+                item_ids,
+            ).fetchall()
+            for row in cat_rows:
+                categories_by_item.setdefault(row["item_id"], []).append(
+                    {
+                        "category_id": row["category_id"],
+                        "category_name": row["category_name"],
+                        "category_color": row["category_color"],
+                        "allocation_amount": row["allocation_amount"],
+                        "allocation_ratio": row["allocation_ratio"],
+                    }
+                )
     
     return [
         {
@@ -1476,6 +1572,7 @@ def get_receipt_items(receipt_id):
             'is_discount': bool(row['is_discount']) if row['is_discount'] is not None else None,
             'tax_rate': row['tax_rate'],
             'tax_amount': row['tax_amount'],
+            'categories': categories_by_item.get(row['id'], []),
             'price': f"{row['line_total']:.2f} €" if row['line_total'] else ''
         }
         for row in rows
@@ -1503,6 +1600,61 @@ def recalculate_receipt_total(receipt_id):
         conn.commit()
     
     return new_total
+
+
+def set_receipt_item_categories(item_id, allocations):
+    """Replace categories for a receipt item."""
+    if not item_id:
+        raise ValueError("Item id required")
+    allocations = allocations or []
+    with get_db_connection() as conn:
+        conn.execute(
+            "DELETE FROM receipt_item_categories WHERE item_id = ?",
+            (item_id,),
+        )
+        if not allocations:
+            conn.commit()
+            return True
+
+        names = []
+        ids = []
+        for entry in allocations:
+            if entry.get("category_id"):
+                ids.append(entry.get("category_id"))
+            elif entry.get("category_name"):
+                names.append(entry.get("category_name"))
+
+        if names:
+            ensure_categories(conn, names)
+        if ids:
+            pass
+
+        category_ids = get_category_ids(conn, names) if names else {}
+
+        now = datetime.now(timezone.utc).isoformat()
+        for entry in allocations:
+            category_id = entry.get("category_id")
+            if not category_id:
+                category_id = category_ids.get(entry.get("category_name"))
+            if not category_id:
+                continue
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO receipt_item_categories
+                    (item_id, category_id, allocation_amount, allocation_ratio, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item_id,
+                    category_id,
+                    entry.get("allocation_amount"),
+                    entry.get("allocation_ratio"),
+                    entry.get("source"),
+                    now,
+                ),
+            )
+        conn.commit()
+    return True
 
 
 def _rows_to_dicts(rows):
