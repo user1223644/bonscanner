@@ -6,15 +6,56 @@ import json
 import os
 import re
 import sqlite3
+import threading
 from datetime import datetime, timezone
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "receipts.db")
+
+def _resolve_db_path(configured_path):
+    # Keep legacy default (DB next to this file) but allow overriding via env var.
+    if not configured_path:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_dir, "receipts.db")
+    # Special SQLite paths should pass through unchanged.
+    if configured_path == ":memory:" or configured_path.startswith("file:"):
+        return configured_path
+    return os.path.abspath(configured_path)
+
+
+DB_PATH = _resolve_db_path(os.environ.get("BONSCANNER_DB_PATH"))
+
+_DB_INITIALIZED = False
+_DB_INIT_LOCK = threading.Lock()
+
+
+def _is_ephemeral_db_path(path):
+    if path == ":memory:":
+        return True
+    # Common shared in-memory URI forms: file::memory:?cache=shared or file:...mode=memory
+    if path.startswith("file:") and (":memory:" in path or "mode=memory" in path):
+        return True
+    return False
+
+
+def _ensure_db_parent_dir():
+    if DB_PATH == ":memory:" or DB_PATH.startswith("file:"):
+        return
+    parent_dir = os.path.dirname(DB_PATH)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+
+
+def _raw_connect():
+    _ensure_db_parent_dir()
+    conn = sqlite3.connect(DB_PATH, uri=DB_PATH.startswith("file:"))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 def get_db_connection():
     """Create a database connection with Row factory."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _raw_connect()
+    _ensure_db_initialized(conn)
     return conn
 
 
@@ -37,67 +78,95 @@ def ensure_columns(conn, columns):
     }
     for col, col_type in columns.items():
         if col not in existing_cols:
-            conn.execute(f"ALTER TABLE receipts ADD COLUMN {col} {col_type}")
+            try:
+                conn.execute(f"ALTER TABLE receipts ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError as exc:
+                # In multi-process setups, another worker may have raced this migration.
+                msg = str(exc).lower()
+                if "duplicate column name" in msg or "already exists" in msg:
+                    continue
+                raise
 
 
 def init_db():
     """Initialize database and run migrations."""
-    with get_db_connection() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS receipts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                store_name TEXT,
-                store_location TEXT,
-                postal_code TEXT,
-                receipt_number TEXT,
-                payment_method TEXT,
-                date TEXT,
-                total REAL,
-                items TEXT,
-                labels TEXT,
-                raw_text TEXT,
-                created_at TEXT
-            )
-            """
+    global _DB_INITIALIZED
+    with _raw_connect() as conn:
+        _run_migrations(conn)
+    if not _is_ephemeral_db_path(DB_PATH):
+        _DB_INITIALIZED = True
+
+
+def _ensure_db_initialized(conn):
+    global _DB_INITIALIZED
+    if _is_ephemeral_db_path(DB_PATH):
+        _run_migrations(conn)
+        return
+    if _DB_INITIALIZED:
+        return
+    with _DB_INIT_LOCK:
+        if _DB_INITIALIZED:
+            return
+        _run_migrations(conn)
+        _DB_INITIALIZED = True
+
+
+def _run_migrations(conn):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            store_name TEXT,
+            store_location TEXT,
+            postal_code TEXT,
+            receipt_number TEXT,
+            payment_method TEXT,
+            date TEXT,
+            total REAL,
+            items TEXT,
+            labels TEXT,
+            raw_text TEXT,
+            created_at TEXT
         )
-        # Auto-migration for new columns
-        needed_cols = {
-            "store_name": "TEXT",
-            "store_location": "TEXT",
-            "postal_code": "TEXT",
-            "receipt_number": "TEXT",
-            "payment_method": "TEXT",
-            "labels": "TEXT",
-            "raw_text": "TEXT",
-        }
-        ensure_columns(conn, needed_cols)
-        
-        # Create receipt_items table
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS receipt_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                receipt_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                quantity REAL DEFAULT 1.0,
-                unit_price REAL,
-                line_total REAL,
-                FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
-            )
-            """
+        """
+    )
+    # Auto-migration for new columns
+    needed_cols = {
+        "store_name": "TEXT",
+        "store_location": "TEXT",
+        "postal_code": "TEXT",
+        "receipt_number": "TEXT",
+        "payment_method": "TEXT",
+        "labels": "TEXT",
+        "raw_text": "TEXT",
+    }
+    ensure_columns(conn, needed_cols)
+
+    # Create receipt_items table
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS receipt_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receipt_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            quantity REAL DEFAULT 1.0,
+            unit_price REAL,
+            line_total REAL,
+            FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
         )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt_id ON receipt_items(receipt_id)"
-        )
-        
-        # Run migration to move JSON items to receipt_items table
-        migrate_items_to_table(conn)
-        
-        # Add placeholder items for receipts with totals but no items
-        add_placeholder_items_for_existing_receipts(conn)
-        
-        conn.commit()
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt_id ON receipt_items(receipt_id)"
+    )
+
+    # Run migration to move JSON items to receipt_items table
+    migrate_items_to_table(conn)
+
+    # Add placeholder items for receipts with totals but no items
+    add_placeholder_items_for_existing_receipts(conn)
+
+    conn.commit()
 
 
 def migrate_items_to_table(conn):
