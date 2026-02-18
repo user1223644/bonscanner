@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sqlite3
+import tempfile
 import threading
 from datetime import datetime, timezone
 
@@ -1438,3 +1439,52 @@ def recalculate_receipt_total(receipt_id):
         conn.commit()
     
     return new_total
+
+
+def _rows_to_dicts(rows):
+    return [dict(row) for row in rows]
+
+
+def export_backup_data():
+    """Export all data for backup/restore."""
+    exported_at = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        receipts = conn.execute("SELECT * FROM receipts ORDER BY id").fetchall()
+        items = conn.execute("SELECT * FROM receipt_items ORDER BY id").fetchall()
+        categories = conn.execute("SELECT * FROM categories ORDER BY id").fetchall()
+        category_rules = conn.execute("SELECT * FROM category_rules ORDER BY id").fetchall()
+        receipt_categories = conn.execute(
+            "SELECT * FROM receipt_categories ORDER BY receipt_id, category_id"
+        ).fetchall()
+        receipt_item_categories = conn.execute(
+            "SELECT * FROM receipt_item_categories ORDER BY item_id, category_id"
+        ).fetchall()
+        receipt_taxes = conn.execute("SELECT * FROM receipt_taxes ORDER BY id").fetchall()
+
+    return {
+        "version": 1,
+        "exported_at": exported_at,
+        "receipts": _rows_to_dicts(receipts),
+        "receipt_items": _rows_to_dicts(items),
+        "categories": _rows_to_dicts(categories),
+        "category_rules": _rows_to_dicts(category_rules),
+        "receipt_categories": _rows_to_dicts(receipt_categories),
+        "receipt_item_categories": _rows_to_dicts(receipt_item_categories),
+        "receipt_taxes": _rows_to_dicts(receipt_taxes),
+    }
+
+
+def create_db_backup_file():
+    """Create a temporary SQLite backup file and return its path."""
+    if _is_ephemeral_db_path(DB_PATH):
+        raise ValueError("Ephemeral database cannot be exported")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp:
+        backup_path = tmp.name
+    source = _raw_connect()
+    dest = sqlite3.connect(backup_path)
+    try:
+        source.backup(dest)
+    finally:
+        dest.close()
+        source.close()
+    return backup_path

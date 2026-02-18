@@ -5,8 +5,11 @@ Flask backend for OCR-based receipt processing.
 
 import os
 import re
+import csv
+import io
+import json
 import tempfile
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response, send_file, after_this_request
 from flask_cors import CORS
 import pytesseract
 from PIL import Image
@@ -17,7 +20,8 @@ from database import (
     delete_receipt_item, get_receipt_items, get_categories,
     create_category, update_category, delete_category,
     get_category_rules, create_category_rule, update_category_rule,
-    delete_category_rule, seed_default_category_rules
+    delete_category_rule, seed_default_category_rules,
+    export_backup_data, create_db_backup_file
 )
 from extractor import extract_receipt_data
 
@@ -339,6 +343,67 @@ def delete_category_rule_route(rule_id):
 def receipt_stats():
     """Get receipt statistics."""
     return jsonify(get_receipt_stats())
+
+
+@app.route('/export/json', methods=['GET'])
+def export_json():
+    """Export full backup as JSON."""
+    data = export_backup_data()
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    response = make_response(payload)
+    response.headers["Content-Type"] = "application/json"
+    response.headers["Content-Disposition"] = "attachment; filename=bonscanner-backup.json"
+    return response
+
+
+@app.route('/export/csv', methods=['GET'])
+def export_csv():
+    """Export receipts as CSV."""
+    receipts = get_all_receipts()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id",
+        "store_name",
+        "date",
+        "total",
+        "payment_method",
+        "labels",
+        "created_at",
+    ])
+    for r in receipts:
+        writer.writerow([
+            r.get("id"),
+            r.get("store_name"),
+            r.get("date"),
+            r.get("total"),
+            r.get("payment_method"),
+            ", ".join(r.get("labels") or []),
+            r.get("created_at"),
+        ])
+    response = make_response(output.getvalue())
+    response.headers["Content-Type"] = "text/csv"
+    response.headers["Content-Disposition"] = "attachment; filename=bonscanner-receipts.csv"
+    return response
+
+
+@app.route('/export/db', methods=['GET'])
+def export_db():
+    """Download SQLite database backup."""
+    try:
+        backup_path = create_db_backup_file()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    @after_this_request
+    def cleanup(response):
+        try:
+            os.unlink(backup_path)
+        except OSError:
+            pass
+        return response
+
+    return send_file(backup_path, as_attachment=True, download_name="bonscanner-backup.db")
 
 
 @app.route('/receipts/<int:receipt_id>/items', methods=['GET'])
