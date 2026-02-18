@@ -176,6 +176,26 @@ def backfill_receipt_categories(conn):
         sync_receipt_categories(conn, row["id"], labels, source="legacy")
 
 
+def backfill_receipt_dates(conn):
+    """Populate date_iso for receipts that have a date but no normalized date."""
+    rows = conn.execute(
+        """
+        SELECT id, date
+        FROM receipts
+        WHERE date IS NOT NULL
+          AND (date_iso IS NULL OR date_iso = '')
+        """
+    ).fetchall()
+    for row in rows:
+        date_iso = parse_date_to_iso(row["date"])
+        if not date_iso:
+            continue
+        conn.execute(
+            "UPDATE receipts SET date_iso = ? WHERE id = ?",
+            (date_iso, row["id"]),
+        )
+
+
 def ensure_columns(conn, columns):
     """Add missing columns to receipts table."""
     existing_cols = {
@@ -260,6 +280,7 @@ def _run_migrations(conn):
         "payment_method": "TEXT",
         "labels": "TEXT",
         "raw_text": "TEXT",
+        "date_iso": "TEXT",
     }
     ensure_columns(conn, needed_cols)
 
@@ -397,6 +418,9 @@ def _run_migrations(conn):
     # Backfill categories from legacy receipt labels
     backfill_receipt_categories(conn)
 
+    # Backfill normalized date column
+    backfill_receipt_dates(conn)
+
     conn.commit()
 
 
@@ -485,6 +509,24 @@ def parse_total_to_float(total):
         return None
 
 
+def parse_date_to_iso(date_value):
+    """Normalize common receipt date formats to YYYY-MM-DD."""
+    if not date_value:
+        return None
+    raw = str(date_value).strip()
+    if not raw:
+        return None
+    match = re.match(r"^(\d{4})[./-](\d{1,2})[./-](\d{1,2})", raw)
+    if match:
+        year, month, day = match.groups()
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    match = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{4})", raw)
+    if match:
+        day, month, year = match.groups()
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    return None
+
+
 def save_receipt(result, labels=None):
     """Save extracted receipt data to database."""
     created_at = datetime.now(timezone.utc).isoformat()
@@ -492,15 +534,16 @@ def save_receipt(result, labels=None):
     labels_json = json_dumps_list(labels or [])
     total_value = parse_total_to_float(result.get('total'))
     receipt_currency = result.get('currency')
+    date_iso = parse_date_to_iso(result.get('date'))
 
     with get_db_connection() as conn:
         cursor = conn.execute(
             """
             INSERT INTO receipts (
                 store_name, store_location, postal_code, receipt_number,
-                payment_method, date, total, items, labels, raw_text, created_at
+                payment_method, date, date_iso, total, items, labels, raw_text, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result.get('store_name'),
@@ -509,6 +552,7 @@ def save_receipt(result, labels=None):
                 result.get('receipt_number'),
                 result.get('payment_method'),
                 result.get('date'),
+                date_iso,
                 total_value,
                 items_json,
                 labels_json,
@@ -615,6 +659,12 @@ def update_receipt(receipt_id, updates):
                 set_parts.append("labels = ?")
                 label_updates = updates['labels'] or []
                 values.append(json_dumps_list(label_updates))
+            elif field == 'date':
+                set_parts.append("date = ?")
+                values.append(updates['date'])
+                date_iso = parse_date_to_iso(updates['date'])
+                set_parts.append("date_iso = ?")
+                values.append(date_iso)
             elif field == 'total':
                 set_parts.append("total = ?")
                 values.append(parse_total_to_float(updates['total']))
@@ -653,7 +703,7 @@ def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filt
         # Build SQL query with optional filters
         sql = """
             SELECT id, store_name, store_location, postal_code, receipt_number,
-                   payment_method, date, total, items, labels, raw_text, created_at
+                   payment_method, date, date_iso, total, items, labels, raw_text, created_at
             FROM receipts
             WHERE 1=1
         """
@@ -726,6 +776,7 @@ def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filt
             'receipt_number': row['receipt_number'],
             'payment_method': row['payment_method'],
             'date': row['date'],
+            'date_iso': row['date_iso'],
             'total': row['total'],
             # Read from receipt_items table, fallback to JSON
             'items': items_by_receipt.get(row['id'], json_loads_list(row['items'])),
