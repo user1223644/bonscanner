@@ -211,6 +211,10 @@
         min-width: 980px;
       }
 
+      .rule-rows {
+        min-width: 980px;
+      }
+
       .rule-header-cell {
         display: flex;
         flex-direction: column;
@@ -395,38 +399,40 @@
           <div class="management-header">
             <span class="management-title">Regeln verwalten</span>
           </div>
-          <div class="rule-header">
-            <div class="rule-header-cell">
-              <span class="rule-header-label">Kategorie</span>
-              <span class="rule-header-help">Zielkategorie</span>
-            </div>
-            <div class="rule-header-cell">
-              <span class="rule-header-label">Typ</span>
-              <span class="rule-header-help">Feldquelle</span>
-            </div>
-            <div class="rule-header-cell">
-              <span class="rule-header-label">Match</span>
-              <span class="rule-header-help">Vergleich</span>
-            </div>
-            <div class="rule-header-cell">
-              <span class="rule-header-label">Pattern</span>
-              <span class="rule-header-help">Suchtext</span>
-            </div>
-            <div class="rule-header-cell">
-              <span class="rule-header-label">Prio</span>
-              <span class="rule-header-help">Höher gewinnt</span>
-            </div>
-            <div class="rule-header-cell align-center">
-              <span class="rule-header-label">Aktiv</span>
-              <span class="rule-header-help">An/Aus</span>
-            </div>
-            <div class="rule-header-cell align-end">
-              <span class="rule-header-label">Aktion</span>
-              <span class="rule-header-help">Speichern/Löschen</span>
-            </div>
-          </div>
           <div id="rules-list" class="empty-hint management-list">
-            Lade Regeln...
+            <div class="rule-header">
+              <div class="rule-header-cell">
+                <span class="rule-header-label">Kategorie</span>
+                <span class="rule-header-help">Zielkategorie</span>
+              </div>
+              <div class="rule-header-cell">
+                <span class="rule-header-label">Typ</span>
+                <span class="rule-header-help">Feldquelle</span>
+              </div>
+              <div class="rule-header-cell">
+                <span class="rule-header-label">Match</span>
+                <span class="rule-header-help">Vergleich</span>
+              </div>
+              <div class="rule-header-cell">
+                <span class="rule-header-label">Pattern</span>
+                <span class="rule-header-help">Suchtext</span>
+              </div>
+              <div class="rule-header-cell">
+                <span class="rule-header-label">Prio</span>
+                <span class="rule-header-help">Höher gewinnt</span>
+              </div>
+              <div class="rule-header-cell align-center">
+                <span class="rule-header-label">Aktiv</span>
+                <span class="rule-header-help">An/Aus</span>
+              </div>
+              <div class="rule-header-cell align-end">
+                <span class="rule-header-label">Aktion</span>
+                <span class="rule-header-help">Speichern/Löschen</span>
+              </div>
+            </div>
+            <div id="rules-rows" class="rule-rows">
+              Lade Regeln...
+            </div>
           </div>
           <div class="rule-form">
             <select id="rule-category" class="rule-select"></select>

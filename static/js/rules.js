@@ -43,7 +43,7 @@ async function loadRules() {
     const rules = await res.json();
     renderRules(rules);
   } catch (e) {
-    const container = document.getElementById("rules-list");
+    const container = document.getElementById("rules-rows");
     if (container) {
       container.innerHTML = '<div class="empty-hint">Keine Regeln gefunden</div>';
     }
@@ -89,7 +89,7 @@ function buildCategorySelect(selectedId) {
 }
 
 function renderRules(rules) {
-  const container = document.getElementById("rules-list");
+  const container = document.getElementById("rules-rows");
   if (!container) return;
   if (!rules || rules.length === 0) {
     container.innerHTML = '<div class="empty-hint">Keine Regeln vorhanden</div>';
