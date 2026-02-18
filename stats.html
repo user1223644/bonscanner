@@ -298,6 +298,7 @@
         border-radius: 12px;
         border: 1px solid var(--border-color);
         overflow: hidden;
+        margin-top: 2rem;
       }
 
       .table-header {
@@ -359,6 +360,7 @@
         flex-direction: column;
         align-items: stretch;
         height: 100%;
+        overflow: hidden;
       }
 
       .management-header {
@@ -376,7 +378,7 @@
       .category-row,
       .rule-row {
         display: grid;
-        grid-template-columns: auto 1fr auto auto;
+        grid-template-columns: 44px minmax(0, 1fr) 36px auto;
         gap: 0.5rem;
         align-items: center;
         padding: 0.5rem 0;
@@ -384,7 +386,14 @@
       }
 
       .rule-row {
-        grid-template-columns: 1fr 1fr 1fr 2fr 0.7fr auto auto;
+        grid-template-columns:
+          minmax(0, 1.2fr)
+          minmax(0, 1fr)
+          minmax(0, 1fr)
+          minmax(0, 1.8fr)
+          minmax(60px, 0.6fr)
+          36px
+          auto;
       }
 
       .category-row:last-child,
@@ -401,18 +410,26 @@
         border-radius: 6px;
         color: var(--text-primary);
         font-size: 0.85rem;
+        width: 100%;
+        min-width: 0;
       }
 
       .category-actions,
       .rule-actions {
         display: flex;
         gap: 0.4rem;
+        align-items: center;
       }
 
       .category-usage {
         font-size: 0.8rem;
         color: var(--text-muted);
-        text-align: right;
+        text-align: center;
+      }
+
+      .category-row > *,
+      .rule-row > * {
+        min-width: 0;
       }
 
       .btn-small {
@@ -456,6 +473,19 @@
       .backup-actions a {
         text-decoration: none;
         text-align: center;
+      }
+
+      .backup-actions .btn-small,
+      .backup-actions .file-input {
+        width: 100%;
+      }
+
+      .rule-active {
+        justify-self: center;
+      }
+
+      .rule-actions {
+        justify-self: end;
       }
 
       .file-input {
