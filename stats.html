@@ -345,10 +345,16 @@
 
       .management-row {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
         gap: 1.5rem;
         margin-top: 2rem;
         align-items: stretch;
+      }
+
+      .management-row.backup-row {
+        grid-template-columns: minmax(280px, 520px);
+        justify-content: start;
+        margin-top: 1.5rem;
       }
 
       .management-card {
@@ -361,6 +367,15 @@
         align-items: stretch;
         height: 100%;
         overflow: hidden;
+      }
+
+      .management-list {
+        flex: 1;
+        min-height: 260px;
+        max-height: 420px;
+        overflow-y: auto;
+        padding-right: 0.35rem;
+        scrollbar-gutter: stable;
       }
 
       .management-header {
@@ -830,7 +845,9 @@
             <div class="management-header">
               <span class="management-title">Kategorien</span>
             </div>
-            <div id="categories-list" class="empty-hint">Lade Kategorien...</div>
+            <div id="categories-list" class="empty-hint management-list">
+              Lade Kategorien...
+            </div>
             <div class="category-form">
               <input
                 type="text"
@@ -846,7 +863,9 @@
             <div class="management-header">
               <span class="management-title">Regeln</span>
             </div>
-            <div id="rules-list" class="empty-hint">Lade Regeln...</div>
+            <div id="rules-list" class="empty-hint management-list">
+              Lade Regeln...
+            </div>
             <div class="rule-form">
               <select id="rule-category" class="rule-select"></select>
               <select id="rule-type" class="rule-select">
@@ -865,6 +884,9 @@
               <button class="btn-small" id="add-rule-btn">Regel hinzufügen</button>
             </div>
           </div>
+        </div>
+
+        <div class="management-row backup-row">
           <div class="management-card">
             <div class="management-header">
               <span class="management-title">Backup</span>
