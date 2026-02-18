@@ -52,11 +52,14 @@ async function loadReceipts() {
 
     // Populate label filter dropdown
     const labelFilter = document.getElementById('label-filter');
-    if (labelFilter && labelFilter.options.length === 1) {
+    if (labelFilter) {
+      const currentValue = labelFilter.value;
+      labelFilter.innerHTML = '<option value="">Alle Kategorien</option>';
       categories.forEach((cat) => {
         const option = document.createElement('option');
         option.value = cat.name;
         option.textContent = cat.name;
+        if (cat.name === currentValue) option.selected = true;
         labelFilter.appendChild(option);
       });
     }
