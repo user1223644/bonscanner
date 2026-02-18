@@ -552,6 +552,48 @@
         text-transform: uppercase;
       }
 
+      .insights-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+      }
+
+      .insight-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+      }
+
+      .insight-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
+
+      .insight-item {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--border-light);
+      }
+
+      .insight-item:last-child {
+        border-bottom: none;
+      }
+
+      .alert-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        background: rgba(245, 166, 35, 0.15);
+        color: var(--accent);
+        margin-bottom: 0.4rem;
+      }
+
       /* Category Tags */
       .category-tag {
         display: inline-block;
@@ -705,6 +747,18 @@
             </div>
             <canvas id="category-chart" height="180"></canvas>
             <div class="category-legend" id="category-legend"></div>
+          </div>
+        </div>
+
+        <div class="insights-row">
+          <div class="insight-card">
+            <div class="insight-title">Trend & Alerts</div>
+            <div id="trend-summary" class="empty-hint">Lade Trend...</div>
+            <div id="alerts-list"></div>
+          </div>
+          <div class="insight-card">
+            <div class="insight-title">Top Geschäfte</div>
+            <div id="top-stores" class="empty-hint">Lade Top Geschäfte...</div>
           </div>
         </div>
 

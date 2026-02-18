@@ -1297,6 +1297,17 @@ def get_receipt_stats():
             """
         ).fetchall()
 
+        store_rows = conn.execute(
+            """
+            SELECT store_name, SUM(total) as total_sum, COUNT(*) as receipt_count
+            FROM receipts
+            WHERE total IS NOT NULL AND store_name IS NOT NULL AND store_name != ''
+            GROUP BY store_name
+            ORDER BY total_sum DESC
+            LIMIT 5
+            """
+        ).fetchall()
+
     # Aggregate by month
     monthly_totals = {}
     category_totals = {}
@@ -1337,12 +1348,65 @@ def get_receipt_stats():
     sorted_monthly = dict(sorted(monthly_totals.items()))
     sorted_category = dict(sorted(category_totals.items(), key=lambda x: -x[1]))
 
+    sorted_month_keys = sorted(monthly_totals.keys())
+    current_month = sorted_month_keys[-1] if sorted_month_keys else None
+    previous_month = sorted_month_keys[-2] if len(sorted_month_keys) > 1 else None
+    current_total = monthly_totals.get(current_month, 0) if current_month else 0
+    previous_total = monthly_totals.get(previous_month, 0) if previous_month else 0
+    change = current_total - previous_total if previous_month else None
+    percent_change = (
+        round((change / previous_total) * 100, 2) if previous_total else None
+    )
+
+    month_avg = (
+        (sum(monthly_totals.values()) / len(monthly_totals)) if monthly_totals else 0
+    )
+    alerts = []
+    if previous_total and percent_change is not None and percent_change >= 20:
+        alerts.append(
+            {
+                "type": "spike",
+                "message": "Ausgaben sind deutlich gestiegen.",
+                "current_month": current_month,
+                "percent_change": percent_change,
+            }
+        )
+    if month_avg and current_total > month_avg * 1.2:
+        alerts.append(
+            {
+                "type": "above_average",
+                "message": "Aktueller Monat liegt über dem Durchschnitt.",
+                "current_month": current_month,
+                "current_total": round(current_total, 2),
+                "average_monthly": round(month_avg, 2),
+            }
+        )
+
+    top_stores = [
+        {
+            "store_name": r["store_name"],
+            "total": round(r["total_sum"] or 0.0, 2),
+            "count": r["receipt_count"],
+        }
+        for r in store_rows
+    ]
+
     return {
         'count': row['count'] or 0,
         'sum': round(row['total_sum'] or 0.0, 2),
         'average': round(row['total_avg'] or 0.0, 2),
         'monthly_totals': sorted_monthly,
         'category_totals': sorted_category,
+        'trend': {
+            'current_month': current_month,
+            'previous_month': previous_month,
+            'current_total': round(current_total, 2) if current_month else None,
+            'previous_total': round(previous_total, 2) if previous_month else None,
+            'change': round(change, 2) if change is not None else None,
+            'percent_change': percent_change,
+        },
+        'top_stores': top_stores,
+        'alerts': alerts,
     }
 
 

@@ -133,6 +133,9 @@ async function loadStats() {
 
     renderSpendingChart(data.monthly_totals || {});
     renderCategoryChart(data.category_totals || {});
+    renderTrend(data.trend);
+    renderAlerts(data.alerts || []);
+    renderTopStores(data.top_stores || []);
   } catch (e) {
     document.getElementById("stats-row").innerHTML =
       '<div class="empty-state">Fehler beim Laden</div>';
@@ -275,6 +278,61 @@ function renderCategoryChart(categoryData) {
       labelColorMap[label] = colors[i];
     }
   });
+}
+
+function renderTrend(trend) {
+  const el = document.getElementById("trend-summary");
+  if (!el) return;
+  if (!trend || !trend.current_month) {
+    el.textContent = "Nicht genug Daten für Trend.";
+    return;
+  }
+  const pct =
+    trend.percent_change === null || trend.percent_change === undefined
+      ? "–"
+      : `${trend.percent_change.toFixed(2)}%`;
+  const change =
+    trend.change === null || trend.change === undefined
+      ? "–"
+      : `${trend.change.toFixed(2)} €`;
+  el.textContent = `Aktueller Monat ${trend.current_month}: ${trend.current_total?.toFixed(2) || 0} € (Δ ${change}, ${pct})`;
+}
+
+function renderAlerts(alerts) {
+  const el = document.getElementById("alerts-list");
+  if (!el) return;
+  if (!alerts || alerts.length === 0) {
+    el.innerHTML = '<div class="empty-hint">Keine Alerts</div>';
+    return;
+  }
+  el.innerHTML = alerts
+    .map(
+      (alert) => `
+        <div class="insight-item">
+          <span><span class="alert-badge">Alert</span> ${escapeHtml(alert.message || "")}</span>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderTopStores(stores) {
+  const el = document.getElementById("top-stores");
+  if (!el) return;
+  if (!stores || stores.length === 0) {
+    el.innerHTML = '<div class="empty-hint">Keine Daten</div>';
+    return;
+  }
+  el.innerHTML = stores
+    .map(
+      (store) => `
+        <div class="insight-item">
+          <span>${escapeHtml(store.store_name || "-")}</span>
+          <span>${(store.total ?? 0).toFixed(2)} €</span>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 async function loadReceipts() {
