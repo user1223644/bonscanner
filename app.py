@@ -21,7 +21,7 @@ from database import (
     create_category, update_category, delete_category,
     get_category_rules, create_category_rule, update_category_rule,
     delete_category_rule, seed_default_category_rules,
-    export_backup_data, create_db_backup_file
+    export_backup_data, create_db_backup_file, import_backup_data
 )
 from extractor import extract_receipt_data
 
@@ -404,6 +404,30 @@ def export_db():
         return response
 
     return send_file(backup_path, as_attachment=True, download_name="bonscanner-backup.db")
+
+
+@app.route('/import/json', methods=['POST'])
+def import_json():
+    """Import backup JSON."""
+    data = None
+    if request.is_json:
+        data = request.get_json()
+    elif 'file' in request.files:
+        file = request.files['file']
+        if file and file.filename:
+            try:
+                data = json.loads(file.read().decode('utf-8'))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                return jsonify({'error': f'Invalid JSON: {exc}'}), 400
+    if data is None:
+        return jsonify({'error': 'No JSON payload provided'}), 400
+
+    try:
+        result = import_backup_data(data)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    return jsonify({'success': True, 'imported': result})
 
 
 @app.route('/receipts/<int:receipt_id>/items', methods=['GET'])

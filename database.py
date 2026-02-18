@@ -1488,3 +1488,275 @@ def create_db_backup_file():
         dest.close()
         source.close()
     return backup_path
+
+
+def import_backup_data(data):
+    """Import backup data. Returns counts of imported records."""
+    if not isinstance(data, dict):
+        raise ValueError("Invalid backup data")
+
+    receipts = data.get("receipts") or []
+    items = data.get("receipt_items") or []
+    categories = data.get("categories") or []
+    category_rules = data.get("category_rules") or []
+    receipt_categories = data.get("receipt_categories") or []
+    receipt_item_categories = data.get("receipt_item_categories") or []
+    receipt_taxes = data.get("receipt_taxes") or []
+
+    imported = {
+        "categories": 0,
+        "receipts": 0,
+        "receipt_items": 0,
+        "category_rules": 0,
+        "receipt_categories": 0,
+        "receipt_item_categories": 0,
+        "receipt_taxes": 0,
+    }
+
+    with get_db_connection() as conn:
+        category_id_map = {}
+        for cat in categories:
+            name = str(cat.get("name") or "").strip()
+            if not name:
+                continue
+            existing = conn.execute(
+                "SELECT id FROM categories WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if existing:
+                cat_id = existing["id"]
+                conn.execute(
+                    """
+                    UPDATE categories
+                    SET color = COALESCE(?, color),
+                        deleted_at = ?,
+                        updated_at = COALESCE(?, updated_at)
+                    WHERE id = ?
+                    """,
+                    (
+                        cat.get("color"),
+                        cat.get("deleted_at"),
+                        cat.get("updated_at"),
+                        cat_id,
+                    ),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO categories (name, color, created_at, updated_at, deleted_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        name,
+                        cat.get("color"),
+                        cat.get("created_at"),
+                        cat.get("updated_at"),
+                        cat.get("deleted_at"),
+                    ),
+                )
+                cat_id = cursor.lastrowid
+                imported["categories"] += 1
+            category_id_map[cat.get("id")] = cat_id
+
+        receipt_id_map = {}
+        existing_item_counts = {}
+        for receipt in receipts:
+            created_at = receipt.get("created_at")
+            store_name = receipt.get("store_name")
+            total = receipt.get("total")
+            date = receipt.get("date")
+            existing = None
+            if created_at:
+                existing = conn.execute(
+                    """
+                    SELECT id FROM receipts
+                    WHERE created_at = ? AND store_name IS ? AND total IS ? AND date IS ?
+                    """,
+                    (created_at, store_name, total, date),
+                ).fetchone()
+            if existing:
+                receipt_id = existing["id"]
+                receipt_id_map[receipt.get("id")] = receipt_id
+                existing_count = conn.execute(
+                    "SELECT COUNT(*) as count FROM receipt_items WHERE receipt_id = ?",
+                    (receipt_id,),
+                ).fetchone()
+                existing_item_counts[receipt_id] = existing_count["count"]
+                continue
+
+            labels_value = receipt.get("labels")
+            if isinstance(labels_value, str):
+                labels_list = json_loads_list(labels_value)
+                labels_json = labels_value
+            else:
+                labels_list = labels_value or []
+                labels_json = json_dumps_list(labels_list)
+
+            date_iso = receipt.get("date_iso") or parse_date_to_iso(date)
+
+            cursor = conn.execute(
+                """
+                INSERT INTO receipts (
+                    store_name, store_location, postal_code, receipt_number,
+                    payment_method, date, date_iso, total, items, labels,
+                    raw_text, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    store_name,
+                    receipt.get("store_location"),
+                    receipt.get("postal_code"),
+                    receipt.get("receipt_number"),
+                    receipt.get("payment_method"),
+                    date,
+                    date_iso,
+                    receipt.get("total"),
+                    receipt.get("items"),
+                    labels_json,
+                    receipt.get("raw_text"),
+                    created_at,
+                ),
+            )
+            receipt_id = cursor.lastrowid
+            receipt_id_map[receipt.get("id")] = receipt_id
+            sync_receipt_categories(conn, receipt_id, labels_list, source="import")
+            imported["receipts"] += 1
+
+        item_id_map = {}
+        for item in items:
+            old_receipt_id = item.get("receipt_id")
+            receipt_id = receipt_id_map.get(old_receipt_id)
+            if not receipt_id:
+                continue
+            if existing_item_counts.get(receipt_id):
+                continue
+            cursor = conn.execute(
+                """
+                INSERT INTO receipt_items (
+                    receipt_id, name, quantity, unit_price, line_total,
+                    unit, currency, is_discount, tax_rate, tax_amount
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    receipt_id,
+                    item.get("name"),
+                    item.get("quantity"),
+                    item.get("unit_price"),
+                    item.get("line_total"),
+                    item.get("unit"),
+                    item.get("currency"),
+                    item.get("is_discount"),
+                    item.get("tax_rate"),
+                    item.get("tax_amount"),
+                ),
+            )
+            item_id_map[item.get("id")] = cursor.lastrowid
+            imported["receipt_items"] += 1
+
+        for rc in receipt_categories:
+            receipt_id = receipt_id_map.get(rc.get("receipt_id"))
+            category_id = category_id_map.get(rc.get("category_id"))
+            if not receipt_id or not category_id:
+                continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO receipt_categories
+                    (receipt_id, category_id, source, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    receipt_id,
+                    category_id,
+                    rc.get("source"),
+                    rc.get("created_at"),
+                ),
+            )
+            imported["receipt_categories"] += 1
+
+        for ric in receipt_item_categories:
+            item_id = item_id_map.get(ric.get("item_id"))
+            category_id = category_id_map.get(ric.get("category_id"))
+            if not item_id or not category_id:
+                continue
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO receipt_item_categories
+                    (item_id, category_id, allocation_amount, allocation_ratio, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item_id,
+                    category_id,
+                    ric.get("allocation_amount"),
+                    ric.get("allocation_ratio"),
+                    ric.get("source"),
+                    ric.get("created_at"),
+                ),
+            )
+            imported["receipt_item_categories"] += 1
+
+        for rule in category_rules:
+            category_id = category_id_map.get(rule.get("category_id"))
+            if not category_id:
+                continue
+            existing = conn.execute(
+                """
+                SELECT id FROM category_rules
+                WHERE rule_type = ? AND pattern = ? AND match_type = ? AND category_id = ?
+                """,
+                (
+                    rule.get("rule_type"),
+                    rule.get("pattern"),
+                    rule.get("match_type"),
+                    category_id,
+                ),
+            ).fetchone()
+            if existing:
+                continue
+            conn.execute(
+                """
+                INSERT INTO category_rules
+                    (name, rule_type, pattern, match_type, category_id,
+                     priority, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rule.get("name"),
+                    rule.get("rule_type"),
+                    rule.get("pattern"),
+                    rule.get("match_type"),
+                    category_id,
+                    rule.get("priority"),
+                    rule.get("is_active"),
+                    rule.get("created_at"),
+                    rule.get("updated_at"),
+                ),
+            )
+            imported["category_rules"] += 1
+
+        for tax in receipt_taxes:
+            receipt_id = receipt_id_map.get(tax.get("receipt_id"))
+            if not receipt_id:
+                continue
+            conn.execute(
+                """
+                INSERT INTO receipt_taxes
+                    (receipt_id, tax_rate, tax_amount, taxable_amount, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    receipt_id,
+                    tax.get("tax_rate"),
+                    tax.get("tax_amount"),
+                    tax.get("taxable_amount"),
+                    tax.get("source"),
+                    tax.get("created_at"),
+                ),
+            )
+            imported["receipt_taxes"] += 1
+
+        conn.commit()
+
+    return imported

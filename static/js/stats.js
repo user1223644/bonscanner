@@ -706,6 +706,46 @@ function setupManagementHandlers() {
       await loadRules();
     });
   }
+
+  const exportJsonLink = document.getElementById("export-json-link");
+  if (exportJsonLink) exportJsonLink.href = `${API_URL}/export/json`;
+  const exportCsvLink = document.getElementById("export-csv-link");
+  if (exportCsvLink) exportCsvLink.href = `${API_URL}/export/csv`;
+  const exportDbLink = document.getElementById("export-db-link");
+  if (exportDbLink) exportDbLink.href = `${API_URL}/export/db`;
+
+  const importBtn = document.getElementById("import-backup-btn");
+  if (importBtn) {
+    importBtn.addEventListener("click", async () => {
+      const fileInput = document.getElementById("backup-file");
+      const status = document.getElementById("backup-status");
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        if (status) status.textContent = "Bitte JSON-Datei auswählen.";
+        return;
+      }
+      if (status) status.textContent = "Import läuft...";
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const res = await fetch(`${API_URL}/import/json`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (status) status.textContent = data.error || "Import fehlgeschlagen.";
+          return;
+        }
+        if (status) {
+          status.textContent = `Importiert: ${JSON.stringify(data.imported)}`;
+        }
+        await refreshManagementData();
+      } catch (e) {
+        if (status) status.textContent = "Import fehlgeschlagen.";
+      }
+    });
+  }
 }
 
 async function initializeDashboard() {
