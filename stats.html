@@ -448,6 +448,9 @@
         .stats-row {
           grid-template-columns: 1fr 1fr;
         }
+        .backup-row {
+          grid-template-columns: 1fr 1fr;
+        }
         .charts-row {
           grid-template-columns: 1fr;
         }
@@ -512,7 +515,7 @@
 
       .backup-row {
         display: grid;
-        grid-template-columns: repeat(2, minmax(280px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: 1.5rem;
         margin-top: 2rem;
         align-items: stretch;
@@ -634,6 +637,9 @@
           margin-left: 0;
         }
         .stats-row {
+          grid-template-columns: 1fr;
+        }
+        .backup-row {
           grid-template-columns: 1fr;
         }
       }
