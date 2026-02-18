@@ -510,6 +510,14 @@
         align-items: stretch;
       }
 
+      .backup-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+        align-items: stretch;
+      }
+
       .insight-card {
         background: var(--bg-card);
         border-radius: 12px;
@@ -761,17 +769,19 @@
           </table>
         </div>
 
-        <div class="management-card" style="margin-top: 2rem;">
-          <div class="management-header">
-            <span class="management-title">Backup</span>
-          </div>
-          <div class="backup-actions">
-            <a class="btn-small" id="export-json-link" href="#">JSON Export</a>
-            <a class="btn-small" id="export-csv-link" href="#">CSV Export</a>
-            <a class="btn-small" id="export-db-link" href="#">DB Download</a>
-            <input type="file" id="backup-file" class="file-input" accept=".json" />
-            <button class="btn-small" id="import-backup-btn">Backup importieren</button>
-            <div id="backup-status" class="empty-hint"></div>
+        <div class="backup-row">
+          <div class="management-card">
+            <div class="management-header">
+              <span class="management-title">Backup</span>
+            </div>
+            <div class="backup-actions">
+              <a class="btn-small" id="export-json-link" href="#">JSON Export</a>
+              <a class="btn-small" id="export-csv-link" href="#">CSV Export</a>
+              <a class="btn-small" id="export-db-link" href="#">DB Download</a>
+              <input type="file" id="backup-file" class="file-input" accept=".json" />
+              <button class="btn-small" id="import-backup-btn">Backup importieren</button>
+              <div id="backup-status" class="empty-hint"></div>
+            </div>
           </div>
         </div>
       </div>
