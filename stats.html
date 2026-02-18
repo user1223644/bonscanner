@@ -342,6 +342,107 @@
         font-size: 0.9rem;
       }
 
+      .management-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+      }
+
+      .management-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+      }
+
+      .management-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .management-title {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .category-row,
+      .rule-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-light);
+      }
+
+      .rule-row {
+        grid-template-columns: 1fr 1fr 1fr 2fr 0.7fr auto auto;
+      }
+
+      .category-row:last-child,
+      .rule-row:last-child {
+        border-bottom: none;
+      }
+
+      .category-name-input,
+      .rule-input,
+      .rule-select {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        padding: 0.35rem 0.5rem;
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 0.85rem;
+      }
+
+      .category-actions,
+      .rule-actions {
+        display: flex;
+        gap: 0.4rem;
+      }
+
+      .category-usage {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        text-align: right;
+      }
+
+      .btn-small {
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-hover);
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 0.8rem;
+      }
+
+      .btn-small.danger {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.4);
+      }
+
+      .category-form,
+      .rule-form {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      .rule-form {
+        grid-template-columns: 1fr 1fr 1fr 2fr 0.7fr auto;
+      }
+
+      .empty-hint {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        padding: 0.75rem 0;
+      }
+
       tr:last-child td {
         border-bottom: none;
       }
@@ -610,6 +711,48 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="management-row">
+          <div class="management-card">
+            <div class="management-header">
+              <span class="management-title">Kategorien</span>
+            </div>
+            <div id="categories-list" class="empty-hint">Lade Kategorien...</div>
+            <div class="category-form">
+              <input
+                type="text"
+                id="new-category-name"
+                class="category-name-input"
+                placeholder="Neue Kategorie"
+              />
+              <input type="color" id="new-category-color" value="#f5a623" />
+              <button class="btn-small" id="add-category-btn">Hinzufügen</button>
+            </div>
+          </div>
+          <div class="management-card">
+            <div class="management-header">
+              <span class="management-title">Regeln</span>
+            </div>
+            <div id="rules-list" class="empty-hint">Lade Regeln...</div>
+            <div class="rule-form">
+              <select id="rule-category" class="rule-select"></select>
+              <select id="rule-type" class="rule-select">
+                <option value="store">Geschäft</option>
+                <option value="keyword">Keyword</option>
+                <option value="payment">Zahlung</option>
+                <option value="item">Artikel</option>
+              </select>
+              <select id="rule-match" class="rule-select">
+                <option value="contains">Enthält</option>
+                <option value="equals">Gleich</option>
+                <option value="regex">Regex</option>
+              </select>
+              <input type="text" id="rule-pattern" class="rule-input" placeholder="Pattern" />
+              <input type="number" id="rule-priority" class="rule-input" placeholder="Prio" value="100" />
+              <button class="btn-small" id="add-rule-btn">Regel hinzufügen</button>
+            </div>
+          </div>
         </div>
       </div>
     </main>

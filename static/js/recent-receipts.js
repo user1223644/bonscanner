@@ -78,15 +78,12 @@
         : ["#f5a623", "#4ade80", "#60a5fa", "#f472b6", "#a78bfa"];
 
     try {
-      const res = await fetch(`${API_URL}/stats`);
+      const res = await fetch(`${API_URL}/categories`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const stats = await res.json();
-      const categoryData = stats?.category_totals || {};
-
-      const sorted = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
+      const categories = await res.json();
       labelColorMap = {};
-      sorted.forEach(([label], i) => {
-        labelColorMap[label] = palette[i % palette.length];
+      categories.forEach((cat, i) => {
+        labelColorMap[cat.name] = cat.color || palette[i % palette.length];
       });
     } catch (e) {
       labelColorMap = {};

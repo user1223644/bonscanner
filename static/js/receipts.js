@@ -41,22 +41,21 @@ function formatDate(dateStr) {
 
 async function loadReceipts() {
   try {
-    const statsRes = await fetch(`${API_URL}/stats`);
-    const stats = await statsRes.json();
-    const categoryData = stats.category_totals || {};
-    const sorted = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
+    const categoryRes = await fetch(`${API_URL}/categories`);
+    const categories = await categoryRes.json();
+    const palette = CATEGORY_COLORS.length ? CATEGORY_COLORS : ["#f5a623"];
     labelColorMap = {};
-    sorted.forEach((e, i) => {
-      labelColorMap[e[0]] = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
+    categories.forEach((cat, i) => {
+      labelColorMap[cat.name] = cat.color || palette[i % palette.length];
     });
 
     // Populate label filter dropdown
     const labelFilter = document.getElementById('label-filter');
     if (labelFilter && labelFilter.options.length === 1) {
-      sorted.forEach(([label]) => {
+      categories.forEach((cat) => {
         const option = document.createElement('option');
-        option.value = label;
-        option.textContent = label;
+        option.value = cat.name;
+        option.textContent = cat.name;
         labelFilter.appendChild(option);
       });
     }
