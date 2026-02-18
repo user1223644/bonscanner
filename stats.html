@@ -343,19 +343,6 @@
         font-size: 0.9rem;
       }
 
-      .management-row {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 1.5rem;
-        margin-top: 2rem;
-        align-items: stretch;
-      }
-
-      .management-row.backup-row {
-        grid-template-columns: minmax(0, 1fr);
-        margin-top: 1.5rem;
-      }
-
       .management-card {
         background: var(--bg-card);
         border-radius: 12px;
@@ -368,16 +355,6 @@
         overflow: hidden;
       }
 
-      .management-list {
-        flex: 1;
-        min-height: 260px;
-        max-height: 420px;
-        overflow-y: auto;
-        overflow-x: auto;
-        padding-right: 0.35rem;
-        scrollbar-gutter: stable;
-      }
-
       .management-header {
         display: flex;
         justify-content: space-between;
@@ -388,66 +365,6 @@
       .management-title {
         font-size: 1rem;
         font-weight: 600;
-      }
-
-      .category-row,
-      .rule-row {
-        display: grid;
-        grid-template-columns: 44px minmax(0, 1fr) 36px auto;
-        gap: 0.5rem;
-        align-items: center;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid var(--border-light);
-        min-width: 520px;
-      }
-
-      .rule-row {
-        grid-template-columns:
-          minmax(0, 1.2fr)
-          minmax(0, 1fr)
-          minmax(0, 1fr)
-          minmax(0, 1.8fr)
-          minmax(60px, 0.6fr)
-          36px
-          auto;
-        min-width: 980px;
-      }
-
-      .category-row:last-child,
-      .rule-row:last-child {
-        border-bottom: none;
-      }
-
-      .category-name-input,
-      .rule-input,
-      .rule-select {
-        background: var(--bg-primary);
-        border: 1px solid var(--border-color);
-        padding: 0.35rem 0.5rem;
-        border-radius: 6px;
-        color: var(--text-primary);
-        font-size: 0.85rem;
-        width: 100%;
-        min-width: 0;
-      }
-
-      .category-actions,
-      .rule-actions {
-        display: flex;
-        gap: 0.4rem;
-        align-items: center;
-        white-space: nowrap;
-      }
-
-      .category-usage {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        text-align: center;
-      }
-
-      .category-row > *,
-      .rule-row > * {
-        min-width: 0;
       }
 
       .btn-small {
@@ -463,18 +380,6 @@
       .btn-small.danger {
         color: #ef4444;
         border-color: rgba(239, 68, 68, 0.4);
-      }
-
-      .category-form,
-      .rule-form {
-        display: grid;
-        grid-template-columns: 1fr auto auto;
-        gap: 0.5rem;
-        margin-top: 1rem;
-      }
-
-      .rule-form {
-        grid-template-columns: 1fr 1fr 1fr 2fr 0.7fr auto;
       }
 
       .empty-hint {
@@ -496,14 +401,6 @@
       .backup-actions .btn-small,
       .backup-actions .file-input {
         width: 100%;
-      }
-
-      .rule-active {
-        justify-self: center;
-      }
-
-      .rule-actions {
-        justify-self: end;
       }
 
       .file-input {
@@ -761,6 +658,27 @@
           </a>
         </li>
         <li>
+          <a href="kategorien.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M4 4h7v7H4z" />
+              <path d="M13 4h7v7h-7z" />
+              <path d="M4 13h7v7H4z" />
+              <path d="M13 13h7v7h-7z" />
+            </svg>
+            Kategorien
+          </a>
+        </li>
+        <li>
+          <a href="regeln.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+            Regeln
+          </a>
+        </li>
+        <li>
           <a href="hochladen.html" class="nav-item">
             <svg class="nav-icon" viewBox="0 0 24 24">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -843,68 +761,17 @@
           </table>
         </div>
 
-        <div class="management-row">
-          <div class="management-card">
-            <div class="management-header">
-              <span class="management-title">Kategorien</span>
-            </div>
-            <div id="categories-list" class="empty-hint management-list">
-              Lade Kategorien...
-            </div>
-            <div class="category-form">
-              <input
-                type="text"
-                id="new-category-name"
-                class="category-name-input"
-                placeholder="Neue Kategorie"
-              />
-              <input type="color" id="new-category-color" value="#f5a623" />
-              <button class="btn-small" id="add-category-btn">Hinzufügen</button>
-            </div>
+        <div class="management-card" style="margin-top: 2rem;">
+          <div class="management-header">
+            <span class="management-title">Backup</span>
           </div>
-        </div>
-
-        <div class="management-row">
-          <div class="management-card">
-            <div class="management-header">
-              <span class="management-title">Regeln</span>
-            </div>
-            <div id="rules-list" class="empty-hint management-list">
-              Lade Regeln...
-            </div>
-            <div class="rule-form">
-              <select id="rule-category" class="rule-select"></select>
-              <select id="rule-type" class="rule-select">
-                <option value="store">Geschäft</option>
-                <option value="keyword">Keyword</option>
-                <option value="payment">Zahlung</option>
-                <option value="item">Artikel</option>
-              </select>
-              <select id="rule-match" class="rule-select">
-                <option value="contains">Enthält</option>
-                <option value="equals">Gleich</option>
-                <option value="regex">Regex</option>
-              </select>
-              <input type="text" id="rule-pattern" class="rule-input" placeholder="Pattern" />
-              <input type="number" id="rule-priority" class="rule-input" placeholder="Prio" value="100" />
-              <button class="btn-small" id="add-rule-btn">Regel hinzufügen</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="management-row backup-row">
-          <div class="management-card">
-            <div class="management-header">
-              <span class="management-title">Backup</span>
-            </div>
-            <div class="backup-actions">
-              <a class="btn-small" id="export-json-link" href="#">JSON Export</a>
-              <a class="btn-small" id="export-csv-link" href="#">CSV Export</a>
-              <a class="btn-small" id="export-db-link" href="#">DB Download</a>
-              <input type="file" id="backup-file" class="file-input" accept=".json" />
-              <button class="btn-small" id="import-backup-btn">Backup importieren</button>
-              <div id="backup-status" class="empty-hint"></div>
-            </div>
+          <div class="backup-actions">
+            <a class="btn-small" id="export-json-link" href="#">JSON Export</a>
+            <a class="btn-small" id="export-csv-link" href="#">CSV Export</a>
+            <a class="btn-small" id="export-db-link" href="#">DB Download</a>
+            <input type="file" id="backup-file" class="file-input" accept=".json" />
+            <button class="btn-small" id="import-backup-btn">Backup importieren</button>
+            <div id="backup-status" class="empty-hint"></div>
           </div>
         </div>
       </div>
