@@ -251,8 +251,13 @@ function renderItemsDetailEditable(receiptId, items) {
     '<div style="margin-top: 0.5rem;">' +
     items
       .map(
-        (item) =>
-          `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        (item) => {
+          const hasId = item.id !== undefined && item.id !== null;
+          const actionButtons = hasId
+            ? `<button class="item-category-btn" onclick="editItemCategories(${receiptId}, ${item.id})" title="Kategorien">Kategorien</button>
+               <button class="delete-item-btn" onclick="deleteItem(${receiptId}, ${item.id})" title="Löschen">×</button>`
+            : '';
+          return `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
             <div>
               <div style="font-weight: 500;">${item.name || "-"}</div>
               ${formatItemMeta(item)}
@@ -260,10 +265,10 @@ function renderItemsDetailEditable(receiptId, items) {
             </div>
             <div>
               <span style="color: var(--text-muted); margin-right: 1rem;">${item.price || ""}</span>
-              <button class="item-category-btn" onclick="editItemCategories(${receiptId}, ${item.id})" title="Kategorien">Kategorien</button>
-              <button class="delete-item-btn" onclick="deleteItem(${receiptId}, ${item.id})" title="Löschen">×</button>
+              ${actionButtons}
             </div>
-          </div>`,
+          </div>`;
+        },
       )
       .join("") +
     "</div>"
