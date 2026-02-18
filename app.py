@@ -115,20 +115,76 @@ def list_receipts():
         store: Filter by store name
         date_from: Filter from date (YYYY-MM-DD)
         date_to: Filter to date (YYYY-MM-DD)
-        label: Filter by category label
+        label: Filter by category label (legacy)
+        category: Filter by category label
+        amount_min: Minimum total amount
+        amount_max: Maximum total amount
+        text: Full-text search across receipt fields and items
+        payment_method: Filter by payment method
+        page: Page number (1-based)
+        page_size: Page size
     """
     store_filter = request.args.get('store')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     label_filter = request.args.get('label')
-    
-    receipts = get_all_receipts(
+    category_filter = request.args.get('category')
+    text_filter = request.args.get('text') or request.args.get('q')
+    payment_method = request.args.get('payment_method')
+
+    amount_min = request.args.get('amount_min')
+    amount_max = request.args.get('amount_max')
+    try:
+        amount_min = float(amount_min) if amount_min is not None else None
+    except ValueError:
+        amount_min = None
+    try:
+        amount_max = float(amount_max) if amount_max is not None else None
+    except ValueError:
+        amount_max = None
+
+    page = request.args.get('page')
+    page_size = request.args.get('page_size')
+    limit = None
+    offset = None
+    include_total = False
+    if page is not None or page_size is not None:
+        include_total = True
+        try:
+            page_val = max(1, int(page or 1))
+        except ValueError:
+            page_val = 1
+        try:
+            size_val = int(page_size or 25)
+        except ValueError:
+            size_val = 25
+        size_val = max(1, min(size_val, 200))
+        limit = size_val
+        offset = (page_val - 1) * size_val
+
+    receipts_result = get_all_receipts(
         store_filter=store_filter,
         date_from=date_from,
         date_to=date_to,
-        label_filter=label_filter
+        label_filter=label_filter,
+        category_filter=category_filter,
+        amount_min=amount_min,
+        amount_max=amount_max,
+        text_filter=text_filter,
+        payment_method=payment_method,
+        limit=limit,
+        offset=offset,
+        include_total=include_total,
     )
-    return jsonify(receipts)
+    if include_total:
+        receipts, total_count = receipts_result
+    else:
+        receipts, total_count = receipts_result, None
+
+    response = jsonify(receipts)
+    if total_count is not None:
+        response.headers["X-Total-Count"] = str(total_count)
+    return response
 
 
 @app.route('/receipts/<int:receipt_id>/labels', methods=['PATCH'])

@@ -1,4 +1,6 @@
 let labelColorMap = {};
+let currentPage = 1;
+const pageSize = 25;
 
 function formatDate(dateStr) {
   if (!dateStr || dateStr === '-') return '-';
@@ -61,26 +63,41 @@ async function loadReceipts() {
 
     // Build query parameters from filters
     const params = new URLSearchParams();
+    const textFilter = document.getElementById('text-filter')?.value.trim();
     const storeFilter = document.getElementById('store-filter')?.value.trim();
     const dateFrom = document.getElementById('date-from-filter')?.value;
     const dateTo = document.getElementById('date-to-filter')?.value;
+    const amountMin = document.getElementById('amount-min-filter')?.value;
+    const amountMax = document.getElementById('amount-max-filter')?.value;
+    const paymentFilter = document.getElementById('payment-filter')?.value.trim();
     const labelFilterValue = document.getElementById('label-filter')?.value;
 
+    if (textFilter) params.append('text', textFilter);
     if (storeFilter) params.append('store', storeFilter);
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
+    if (amountMin) params.append('amount_min', amountMin);
+    if (amountMax) params.append('amount_max', amountMax);
+    if (paymentFilter) params.append('payment_method', paymentFilter);
     if (labelFilterValue) params.append('label', labelFilterValue);
+    params.append('page', String(currentPage));
+    params.append('page_size', String(pageSize));
 
     const queryString = params.toString();
     const url = `${API_URL}/receipts${queryString ? '?' + queryString : ''}`;
     
     const res = await fetch(url);
     const receipts = await res.json();
+    const totalCountHeader = res.headers.get("X-Total-Count");
+    const totalCount = totalCountHeader ? Number(totalCountHeader) : receipts.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
     const tbody = document.getElementById("receipts-body");
 
     if (receipts.length === 0) {
       tbody.innerHTML =
         '<tr><td colspan="5" class="empty-state">Keine Belege vorhanden</td></tr>';
+      updatePagination(totalPages, totalCount);
       return;
     }
 
@@ -124,9 +141,11 @@ async function loadReceipts() {
       `,
       )
       .join("");
+    updatePagination(totalPages, totalCount);
   } catch (e) {
     document.getElementById("receipts-body").innerHTML =
       '<tr><td colspan="5" class="empty-state">Fehler beim Laden</td></tr>';
+    updatePagination(1, 0);
   }
 }
 
@@ -134,24 +153,66 @@ async function loadReceipts() {
 let filterDebounceTimer;
 function debounceFilter() {
   clearTimeout(filterDebounceTimer);
-  filterDebounceTimer = setTimeout(loadReceipts, 500);
+  filterDebounceTimer = setTimeout(() => {
+    currentPage = 1;
+    loadReceipts();
+  }, 500);
+}
+
+function resetPageAndLoad() {
+  currentPage = 1;
+  loadReceipts();
 }
 
 function clearFilters() {
+  document.getElementById('text-filter').value = '';
   document.getElementById('store-filter').value = '';
   document.getElementById('date-from-filter').value = '';
   document.getElementById('date-to-filter').value = '';
+  document.getElementById('amount-min-filter').value = '';
+  document.getElementById('amount-max-filter').value = '';
+  document.getElementById('payment-filter').value = '';
   document.getElementById('label-filter').value = '';
+  currentPage = 1;
   loadReceipts();
 }
 
 // Attach filter event listeners
 document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('text-filter')?.addEventListener('input', debounceFilter);
   document.getElementById('store-filter')?.addEventListener('input', debounceFilter);
-  document.getElementById('date-from-filter')?.addEventListener('change', loadReceipts);
-  document.getElementById('date-to-filter')?.addEventListener('change', loadReceipts);
-  document.getElementById('label-filter')?.addEventListener('change', loadReceipts);
+  document.getElementById('date-from-filter')?.addEventListener('change', resetPageAndLoad);
+  document.getElementById('date-to-filter')?.addEventListener('change', resetPageAndLoad);
+  document.getElementById('amount-min-filter')?.addEventListener('input', debounceFilter);
+  document.getElementById('amount-max-filter')?.addEventListener('input', debounceFilter);
+  document.getElementById('payment-filter')?.addEventListener('input', debounceFilter);
+  document.getElementById('label-filter')?.addEventListener('change', resetPageAndLoad);
+  document.getElementById('prev-page')?.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage -= 1;
+      loadReceipts();
+    }
+  });
+  document.getElementById('next-page')?.addEventListener('click', () => {
+    currentPage += 1;
+    loadReceipts();
+  });
 });
+
+function updatePagination(totalPages, totalCount) {
+  const prevBtn = document.getElementById('prev-page');
+  const nextBtn = document.getElementById('next-page');
+  const info = document.getElementById('page-info');
+
+  if (!prevBtn || !nextBtn || !info) return;
+
+  const safeTotalPages = Math.max(1, totalPages);
+  if (currentPage > safeTotalPages) currentPage = safeTotalPages;
+
+  prevBtn.disabled = currentPage <= 1;
+  nextBtn.disabled = currentPage >= safeTotalPages;
+  info.textContent = `Seite ${currentPage} von ${safeTotalPages} · ${totalCount} Belege`;
+}
 
 function renderItemsDetail(items) {
   if (!items || items.length === 0) {

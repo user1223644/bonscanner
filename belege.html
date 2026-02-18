@@ -417,6 +417,31 @@
         background: var(--border-color);
       }
 
+      .pagination {
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      .page-btn {
+        padding: 0.5rem 0.9rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-card);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
       @media (max-width: 768px) {
         .sidebar {
           display: none;
@@ -483,6 +508,12 @@
       <div class="filter-section">
         <input
           type="text"
+          id="text-filter"
+          class="filter-input"
+          placeholder="Textsuche (Geschäft, Artikel...)"
+        />
+        <input
+          type="text"
           id="store-filter"
           class="filter-input"
           placeholder="Nach Geschäft suchen..."
@@ -498,6 +529,26 @@
           id="date-to-filter"
           class="filter-input"
           placeholder="Bis Datum"
+        />
+        <input
+          type="number"
+          id="amount-min-filter"
+          class="filter-input"
+          placeholder="Min. Betrag"
+          step="0.01"
+        />
+        <input
+          type="number"
+          id="amount-max-filter"
+          class="filter-input"
+          placeholder="Max. Betrag"
+          step="0.01"
+        />
+        <input
+          type="text"
+          id="payment-filter"
+          class="filter-input"
+          placeholder="Zahlungsart"
         />
         <select id="label-filter" class="filter-input">
           <option value="">Alle Kategorien</option>
@@ -524,6 +575,12 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="pagination" id="pagination">
+        <button class="page-btn" id="prev-page" disabled>Zurück</button>
+        <span id="page-info">Seite 1 von 1</span>
+        <button class="page-btn" id="next-page" disabled>Weiter</button>
       </div>
     </main>
 

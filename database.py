@@ -687,87 +687,199 @@ def update_receipt(receipt_id, updates):
     return True
 
 
-def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filter=None):
-    """Retrieve all receipts from database with optional filtering.
-    
-    Args:
-        store_filter: Filter by store name (case-insensitive substring match)
-        date_from: Filter receipts from this date (YYYY-MM-DD)
-        date_to: Filter receipts to this date (YYYY-MM-DD)
-        label_filter: Filter by label (exact match)
-    
-    Returns:
-        List of receipt dictionaries
-    """
-    with get_db_connection() as conn:
-        # Build SQL query with optional filters
-        sql = """
-            SELECT id, store_name, store_location, postal_code, receipt_number,
-                   payment_method, date, date_iso, total, items, labels, raw_text, created_at
-            FROM receipts
-            WHERE 1=1
-        """
-        params = []
-        
-        # Store name filter (case-insensitive)
-        if store_filter:
-            sql += " AND LOWER(store_name) LIKE LOWER(?)"
-            params.append(f"%{store_filter}%")
-        
-        # Date range filters
-        if date_from:
-            # Support both DD.MM.YYYY and YYYY-MM-DD formats
-            sql += " AND (date >= ? OR date LIKE ?)"
-            params.append(date_from)
-            params.append(f"%{date_from}%")
-        
-        if date_to:
-            sql += " AND (date <= ? OR date LIKE ?)"
-            params.append(date_to)
-            params.append(f"%{date_to}%")
-        
-        # Label filter
-        if label_filter:
-            sql += " AND labels LIKE ?"
-            params.append(f'%"{label_filter}"%')
-        
-        sql += " ORDER BY id DESC"
-        
-        rows = conn.execute(sql, params).fetchall()
-        
-        # Fetch all items from receipt_items table
-        all_items = conn.execute(
-            """
-            SELECT receipt_id, name, quantity, unit_price, line_total,
-                   unit, currency, is_discount, tax_rate, tax_amount
-            FROM receipt_items
-            ORDER BY id
-            """
-        ).fetchall()
-        
-        # Group items by receipt_id
-        items_by_receipt = {}
-        for item in all_items:
-            receipt_id = item['receipt_id']
-            if receipt_id not in items_by_receipt:
-                items_by_receipt[receipt_id] = []
-            
-            # Format item like the original JSON structure
-            item_dict = {
-                'name': item['name'],
-                'price': f"{item['line_total']:.2f} €" if item['line_total'] else '',
-                'quantity': item['quantity'],
-                'unit_price': item['unit_price'],
-                'line_total': item['line_total'],
-                'unit': item['unit'],
-                'currency': item['currency'],
-                'is_discount': bool(item['is_discount']) if item['is_discount'] is not None else None,
-                'tax_rate': item['tax_rate'],
-                'tax_amount': item['tax_amount'],
-            }
-            items_by_receipt[receipt_id].append(item_dict)
+def _normalize_text_filter(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
-    return [
+
+def _build_receipt_filters(
+    store_filter=None,
+    date_from=None,
+    date_to=None,
+    label_filter=None,
+    category_filter=None,
+    amount_min=None,
+    amount_max=None,
+    text_filter=None,
+    payment_method=None,
+):
+    where = []
+    params = []
+
+    store_filter = _normalize_text_filter(store_filter)
+    text_filter = _normalize_text_filter(text_filter)
+    payment_method = _normalize_text_filter(payment_method)
+    category_name = _normalize_text_filter(category_filter or label_filter)
+
+    if store_filter:
+        where.append("LOWER(r.store_name) LIKE LOWER(?)")
+        params.append(f"%{store_filter}%")
+
+    if date_from:
+        where.append("r.date_iso >= ?")
+        params.append(date_from)
+
+    if date_to:
+        where.append("r.date_iso <= ?")
+        params.append(date_to)
+
+    if amount_min is not None:
+        where.append("r.total >= ?")
+        params.append(amount_min)
+
+    if amount_max is not None:
+        where.append("r.total <= ?")
+        params.append(amount_max)
+
+    if payment_method:
+        where.append("LOWER(r.payment_method) LIKE LOWER(?)")
+        params.append(f"%{payment_method}%")
+
+    if category_name:
+        where.append(
+            """
+            (
+                EXISTS (
+                    SELECT 1
+                    FROM receipt_categories rc
+                    JOIN categories c ON rc.category_id = c.id
+                    WHERE rc.receipt_id = r.id
+                      AND c.deleted_at IS NULL
+                      AND c.name = ?
+                )
+                OR r.labels LIKE ?
+            )
+            """
+        )
+        params.append(category_name)
+        params.append(f'%"{category_name}"%')
+
+    if text_filter:
+        like = f"%{text_filter}%"
+        where.append(
+            """
+            (
+                LOWER(r.store_name) LIKE LOWER(?)
+                OR LOWER(r.store_location) LIKE LOWER(?)
+                OR LOWER(r.receipt_number) LIKE LOWER(?)
+                OR LOWER(r.payment_method) LIKE LOWER(?)
+                OR LOWER(r.raw_text) LIKE LOWER(?)
+                OR EXISTS (
+                    SELECT 1
+                    FROM receipt_items ri
+                    WHERE ri.receipt_id = r.id
+                      AND LOWER(ri.name) LIKE LOWER(?)
+                )
+            )
+            """
+        )
+        params.extend([like, like, like, like, like, like])
+
+    return where, params
+
+
+def _fetch_receipts_rows(conn, where, params, limit=None, offset=None):
+    sql = """
+        SELECT r.id, r.store_name, r.store_location, r.postal_code, r.receipt_number,
+               r.payment_method, r.date, r.date_iso, r.total, r.items, r.labels,
+               r.raw_text, r.created_at
+        FROM receipts r
+    """
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY r.id DESC"
+    if limit is not None:
+        sql += " LIMIT ?"
+        params = params + [limit]
+        if offset:
+            sql += " OFFSET ?"
+            params = params + [offset]
+    return conn.execute(sql, params).fetchall()
+
+
+def _fetch_receipts_count(conn, where, params):
+    sql = "SELECT COUNT(*) as count FROM receipts r"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    row = conn.execute(sql, params).fetchone()
+    return row["count"] if row else 0
+
+
+def get_all_receipts(
+    store_filter=None,
+    date_from=None,
+    date_to=None,
+    label_filter=None,
+    category_filter=None,
+    amount_min=None,
+    amount_max=None,
+    text_filter=None,
+    payment_method=None,
+    limit=None,
+    offset=None,
+    include_total=False,
+):
+    """Retrieve receipts with optional filtering and pagination."""
+    where, params = _build_receipt_filters(
+        store_filter=store_filter,
+        date_from=date_from,
+        date_to=date_to,
+        label_filter=label_filter,
+        category_filter=category_filter,
+        amount_min=amount_min,
+        amount_max=amount_max,
+        text_filter=text_filter,
+        payment_method=payment_method,
+    )
+
+    with get_db_connection() as conn:
+        rows = _fetch_receipts_rows(conn, where, params, limit=limit, offset=offset)
+
+        total_count = None
+        if include_total:
+            total_count = _fetch_receipts_count(conn, where, params)
+
+        receipt_ids = [row["id"] for row in rows]
+        if receipt_ids:
+            placeholders = ", ".join("?" for _ in receipt_ids)
+            all_items = conn.execute(
+                f"""
+                SELECT receipt_id, name, quantity, unit_price, line_total,
+                       unit, currency, is_discount, tax_rate, tax_amount
+                FROM receipt_items
+                WHERE receipt_id IN ({placeholders})
+                ORDER BY id
+                """,
+                receipt_ids,
+            ).fetchall()
+        else:
+            all_items = []
+
+    # Group items by receipt_id
+    items_by_receipt = {}
+    for item in all_items:
+        receipt_id = item['receipt_id']
+        if receipt_id not in items_by_receipt:
+            items_by_receipt[receipt_id] = []
+
+        # Format item like the original JSON structure
+        item_dict = {
+            'name': item['name'],
+            'price': f"{item['line_total']:.2f} €" if item['line_total'] else '',
+            'quantity': item['quantity'],
+            'unit_price': item['unit_price'],
+            'line_total': item['line_total'],
+            'unit': item['unit'],
+            'currency': item['currency'],
+            'is_discount': bool(item['is_discount']) if item['is_discount'] is not None else None,
+            'tax_rate': item['tax_rate'],
+            'tax_amount': item['tax_amount'],
+        }
+        items_by_receipt[receipt_id].append(item_dict)
+
+    receipts = [
         {
             'id': row['id'],
             'store_name': row['store_name'],
@@ -786,6 +898,10 @@ def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filt
         }
         for row in rows
     ]
+
+    if include_total:
+        return receipts, total_count
+    return receipts
 
 
 def get_all_labels():
