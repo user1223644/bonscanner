@@ -193,6 +193,22 @@ def ensure_columns(conn, columns):
                 raise
 
 
+def ensure_table_columns(conn, table_name, columns):
+    """Add missing columns to a table."""
+    existing_cols = {
+        row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    for col, col_type in columns.items():
+        if col not in existing_cols:
+            try:
+                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError as exc:
+                msg = str(exc).lower()
+                if "duplicate column name" in msg or "already exists" in msg:
+                    continue
+                raise
+
+
 def init_db():
     """Initialize database and run migrations."""
     global _DB_INITIALIZED
@@ -264,6 +280,17 @@ def _run_migrations(conn):
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_receipt_items_receipt_id ON receipt_items(receipt_id)"
     )
+    ensure_table_columns(
+        conn,
+        "receipt_items",
+        {
+            "unit": "TEXT",
+            "currency": "TEXT",
+            "is_discount": "INTEGER",
+            "tax_rate": "REAL",
+            "tax_amount": "REAL",
+        },
+    )
 
     # Categories and mappings for future extensibility
     conn.execute(
@@ -317,6 +344,48 @@ def _run_migrations(conn):
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_receipt_item_categories_category_id ON receipt_item_categories(category_id)"
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS category_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            rule_type TEXT NOT NULL,
+            pattern TEXT NOT NULL,
+            match_type TEXT NOT NULL DEFAULT 'contains',
+            category_id INTEGER NOT NULL,
+            priority INTEGER DEFAULT 100,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_category_rules_type ON category_rules(rule_type, is_active)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_category_rules_category_id ON category_rules(category_id)"
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS receipt_taxes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receipt_id INTEGER NOT NULL,
+            tax_rate REAL,
+            tax_amount REAL,
+            taxable_amount REAL,
+            source TEXT,
+            created_at TEXT,
+            FOREIGN KEY (receipt_id) REFERENCES receipts(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_taxes_receipt_id ON receipt_taxes(receipt_id)"
     )
 
     # Run migration to move JSON items to receipt_items table
