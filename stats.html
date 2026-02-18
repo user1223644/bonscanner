@@ -345,15 +345,14 @@
 
       .management-row {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        grid-template-columns: minmax(0, 1fr);
         gap: 1.5rem;
         margin-top: 2rem;
         align-items: stretch;
       }
 
       .management-row.backup-row {
-        grid-template-columns: minmax(280px, 520px);
-        justify-content: start;
+        grid-template-columns: minmax(0, 1fr);
         margin-top: 1.5rem;
       }
 
@@ -863,6 +862,9 @@
               <button class="btn-small" id="add-category-btn">Hinzufügen</button>
             </div>
           </div>
+        </div>
+
+        <div class="management-row">
           <div class="management-card">
             <div class="management-header">
               <span class="management-title">Regeln</span>
