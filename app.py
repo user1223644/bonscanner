@@ -4,6 +4,7 @@ Flask backend for OCR-based receipt processing.
 """
 
 import os
+import re
 import tempfile
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -14,7 +15,9 @@ from database import (
     init_db, save_receipt, get_all_receipts, get_receipt_stats,
     get_all_labels, update_receipt_labels, add_receipt_item,
     delete_receipt_item, get_receipt_items, get_categories,
-    create_category, update_category, delete_category
+    create_category, update_category, delete_category,
+    get_category_rules, create_category_rule, update_category_rule,
+    delete_category_rule, seed_default_category_rules
 )
 from extractor import extract_receipt_data
 
@@ -30,30 +33,55 @@ CATEGORIZATION_RULES = {
     'Elektronik': ['media markt', 'saturn', 'conrad'],
 }
 
-def apply_auto_categorization(store_name, existing_labels):
-    """Apply auto-categorization rules based on store name.
-    
-    Args:
-        store_name: Normalized store name from receipt
-        existing_labels: List of labels already assigned
-        
-    Returns:
-        Updated list of labels with auto-applied categories
-    """
+def apply_auto_categorization(store_name, existing_labels, raw_text=None, payment_method=None, items=None):
+    """Apply auto-categorization rules based on configured rules."""
     labels = list(existing_labels) if existing_labels else []
-    
-    if not store_name:
+    rules = get_category_rules()
+
+    if not rules:
         return labels
-    
-    store_lower = store_name.lower()
-    
-    for category, patterns in CATEGORIZATION_RULES.items():
-        # Check if any pattern matches the store name
-        if any(pattern in store_lower for pattern in patterns):
-            # Only add if not already present
-            if category not in labels:
-                labels.append(category)
-    
+
+    store_value = (store_name or "").lower()
+    text_value = (raw_text or "").lower()
+    payment_value = (payment_method or "").lower()
+    item_names = [str(it.get("name", "")).lower() for it in (items or []) if it.get("name")]
+
+    for rule in rules:
+        if not rule.get("is_active"):
+            continue
+        category_name = rule.get("category_name")
+        if not category_name or category_name in labels:
+            continue
+
+        rule_type = (rule.get("rule_type") or "").lower()
+        pattern = str(rule.get("pattern") or "").lower()
+        match_type = (rule.get("match_type") or "contains").lower()
+
+        def match_value(value):
+            if not value:
+                return False
+            if match_type == "equals":
+                return value == pattern
+            if match_type == "regex":
+                try:
+                    return re.search(pattern, value, re.IGNORECASE) is not None
+                except re.error:
+                    return False
+            return pattern in value
+
+        matched = False
+        if rule_type == "store":
+            matched = match_value(store_value)
+        elif rule_type == "keyword":
+            matched = match_value(text_value)
+        elif rule_type == "payment":
+            matched = match_value(payment_value)
+        elif rule_type == "item":
+            matched = any(match_value(name) for name in item_names)
+
+        if matched:
+            labels.append(category_name)
+
     return labels
 
 def parse_labels_from_request(req):
@@ -92,7 +120,13 @@ def upload_receipt():
         
         # Apply auto-categorization based on store name
         store_name = result.get('store_name', '')
-        labels = apply_auto_categorization(store_name, labels)
+        labels = apply_auto_categorization(
+            store_name,
+            labels,
+            raw_text=result.get('raw_text'),
+            payment_method=result.get('payment_method'),
+            items=result.get('items'),
+        )
         
         result['labels'] = labels
         save_receipt(result, labels=labels)
@@ -254,6 +288,53 @@ def delete_category_route(category_id):
     return jsonify({'success': True})
 
 
+@app.route('/category-rules', methods=['GET'])
+def list_category_rules():
+    """Get category rules."""
+    rule_type = request.args.get('rule_type')
+    return jsonify(get_category_rules(rule_type=rule_type))
+
+
+@app.route('/category-rules', methods=['POST'])
+def create_category_rule_route():
+    """Create a category rule."""
+    data = request.get_json() or {}
+    try:
+        rule_id = create_category_rule(
+            category_id=data.get('category_id'),
+            rule_type=data.get('rule_type'),
+            pattern=data.get('pattern'),
+            match_type=data.get('match_type') or 'contains',
+            priority=data.get('priority') or 100,
+            name=data.get('name'),
+            is_active=data.get('is_active', True),
+        )
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'id': rule_id})
+
+
+@app.route('/category-rules/<int:rule_id>', methods=['PATCH'])
+def update_category_rule_route(rule_id):
+    """Update a category rule."""
+    data = request.get_json() or {}
+    try:
+        update_category_rule(rule_id, data)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'success': True})
+
+
+@app.route('/category-rules/<int:rule_id>', methods=['DELETE'])
+def delete_category_rule_route(rule_id):
+    """Delete a category rule."""
+    try:
+        delete_category_rule(rule_id)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'success': True})
+
+
 @app.route('/stats', methods=['GET'])
 def receipt_stats():
     """Get receipt statistics."""
@@ -301,6 +382,7 @@ def health_check():
 
 # Initialize database on startup
 init_db()
+seed_default_category_rules(CATEGORIZATION_RULES)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -1101,6 +1101,179 @@ def delete_category(category_id):
     return True
 
 
+def get_category_rules(rule_type=None):
+    """Get category rules."""
+    with get_db_connection() as conn:
+        sql = """
+            SELECT r.id, r.name, r.rule_type, r.pattern, r.match_type,
+                   r.priority, r.is_active, r.created_at, r.updated_at,
+                   c.id as category_id, c.name as category_name, c.color as category_color
+            FROM category_rules r
+            JOIN categories c ON r.category_id = c.id
+            WHERE c.deleted_at IS NULL
+        """
+        params = []
+        if rule_type:
+            sql += " AND r.rule_type = ?"
+            params.append(rule_type)
+        sql += " ORDER BY r.priority, r.id"
+        rows = conn.execute(sql, params).fetchall()
+
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "rule_type": row["rule_type"],
+            "pattern": row["pattern"],
+            "match_type": row["match_type"],
+            "priority": row["priority"],
+            "is_active": bool(row["is_active"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "category_id": row["category_id"],
+            "category_name": row["category_name"],
+            "category_color": row["category_color"],
+        }
+        for row in rows
+    ]
+
+
+def create_category_rule(
+    category_id,
+    rule_type,
+    pattern,
+    match_type="contains",
+    priority=100,
+    name=None,
+    is_active=True,
+):
+    if not category_id:
+        raise ValueError("Category id required")
+    if not rule_type:
+        raise ValueError("Rule type required")
+    if not pattern or not str(pattern).strip():
+        raise ValueError("Pattern required")
+    clean_pattern = str(pattern).strip()
+    clean_match = str(match_type or "contains").strip().lower()
+    clean_type = str(rule_type).strip().lower()
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_db_connection() as conn:
+        cat = conn.execute(
+            "SELECT id FROM categories WHERE id = ? AND deleted_at IS NULL",
+            (category_id,),
+        ).fetchone()
+        if not cat:
+            raise ValueError("Category not found")
+        cursor = conn.execute(
+            """
+            INSERT INTO category_rules
+                (name, rule_type, pattern, match_type, category_id,
+                 priority, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                name,
+                clean_type,
+                clean_pattern,
+                clean_match,
+                category_id,
+                int(priority or 100),
+                1 if is_active else 0,
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def update_category_rule(rule_id, updates):
+    if not rule_id:
+        raise ValueError("Rule id required")
+    if not updates:
+        return False
+    fields = []
+    values = []
+    now = datetime.now(timezone.utc).isoformat()
+
+    if "name" in updates:
+        fields.append("name = ?")
+        values.append(updates["name"])
+    if "rule_type" in updates and updates["rule_type"]:
+        fields.append("rule_type = ?")
+        values.append(str(updates["rule_type"]).strip().lower())
+    if "pattern" in updates and updates["pattern"]:
+        fields.append("pattern = ?")
+        values.append(str(updates["pattern"]).strip())
+    if "match_type" in updates and updates["match_type"]:
+        fields.append("match_type = ?")
+        values.append(str(updates["match_type"]).strip().lower())
+    if "priority" in updates and updates["priority"] is not None:
+        fields.append("priority = ?")
+        values.append(int(updates["priority"]))
+    if "is_active" in updates and updates["is_active"] is not None:
+        fields.append("is_active = ?")
+        values.append(1 if updates["is_active"] else 0)
+    if "category_id" in updates and updates["category_id"]:
+        fields.append("category_id = ?")
+        values.append(updates["category_id"])
+
+    if not fields:
+        return False
+
+    fields.append("updated_at = ?")
+    values.append(now)
+    values.append(rule_id)
+
+    with get_db_connection() as conn:
+        conn.execute(
+            f"UPDATE category_rules SET {', '.join(fields)} WHERE id = ?",
+            values,
+        )
+        conn.commit()
+    return True
+
+
+def delete_category_rule(rule_id):
+    if not rule_id:
+        raise ValueError("Rule id required")
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM category_rules WHERE id = ?", (rule_id,))
+        conn.commit()
+    return True
+
+
+def seed_default_category_rules(rules):
+    """Seed default rules if none exist."""
+    if not rules:
+        return
+    with get_db_connection() as conn:
+        existing = conn.execute(
+            "SELECT COUNT(*) as count FROM category_rules"
+        ).fetchone()
+        if existing["count"] > 0:
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        for category, patterns in rules.items():
+            ensure_categories(conn, [category])
+            cat_ids = get_category_ids(conn, [category])
+            category_id = cat_ids.get(category)
+            if not category_id:
+                continue
+            for pattern in patterns:
+                conn.execute(
+                    """
+                    INSERT INTO category_rules
+                        (rule_type, pattern, match_type, category_id,
+                         priority, is_active, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    ("store", str(pattern).strip(), "contains", category_id, 100, 1, now, now),
+                )
+        conn.commit()
+
+
 def get_receipt_stats():
     """Get aggregate statistics for receipts including monthly and category breakdown."""
     with get_db_connection() as conn:
