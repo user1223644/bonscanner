@@ -13,7 +13,8 @@ from PIL import Image
 from database import (
     init_db, save_receipt, get_all_receipts, get_receipt_stats,
     get_all_labels, update_receipt_labels, add_receipt_item,
-    delete_receipt_item, get_receipt_items
+    delete_receipt_item, get_receipt_items, get_categories,
+    create_category, update_category, delete_category
 )
 from extractor import extract_receipt_data
 
@@ -209,6 +210,48 @@ def patch_receipt(receipt_id):
 def list_labels():
     """Get all unique labels."""
     return jsonify(get_all_labels())
+
+
+@app.route('/categories', methods=['GET'])
+def list_categories():
+    """Get all categories."""
+    return jsonify(get_categories())
+
+
+@app.route('/categories', methods=['POST'])
+def create_category_route():
+    """Create a category."""
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    color = data.get('color')
+    try:
+        category_id = create_category(name, color=color)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'id': category_id, 'name': name, 'color': color})
+
+
+@app.route('/categories/<int:category_id>', methods=['PATCH'])
+def update_category_route(category_id):
+    """Update a category."""
+    data = request.get_json() or {}
+    name = data.get('name')
+    color = data.get('color')
+    try:
+        update_category(category_id, name=name, color=color)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'success': True})
+
+
+@app.route('/categories/<int:category_id>', methods=['DELETE'])
+def delete_category_route(category_id):
+    """Delete a category (soft delete)."""
+    try:
+        delete_category(category_id)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify({'success': True})
 
 
 @app.route('/stats', methods=['GET'])

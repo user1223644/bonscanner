@@ -907,15 +907,198 @@ def get_all_receipts(
 def get_all_labels():
     """Get all unique labels from receipts."""
     with get_db_connection() as conn:
+        category_rows = conn.execute(
+            "SELECT name FROM categories WHERE deleted_at IS NULL ORDER BY name"
+        ).fetchall()
         rows = conn.execute("SELECT labels FROM receipts WHERE labels IS NOT NULL").fetchall()
 
-    all_labels = set()
+    all_labels = {row["name"] for row in category_rows}
     for row in rows:
         if row['labels']:
             labels = json_loads_list(row['labels'])
             all_labels.update(labels)
 
     return sorted(all_labels)
+
+
+def get_categories(include_deleted=False):
+    """Get categories with usage counts."""
+    with get_db_connection() as conn:
+        sql = """
+            SELECT c.id, c.name, c.color, c.created_at, c.updated_at, c.deleted_at,
+                   COUNT(rc.receipt_id) as usage_count
+            FROM categories c
+            LEFT JOIN receipt_categories rc ON rc.category_id = c.id
+        """
+        params = []
+        if not include_deleted:
+            sql += " WHERE c.deleted_at IS NULL"
+        sql += " GROUP BY c.id ORDER BY c.name"
+        rows = conn.execute(sql, params).fetchall()
+
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "color": row["color"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "deleted_at": row["deleted_at"],
+            "usage_count": row["usage_count"],
+        }
+        for row in rows
+    ]
+
+
+def create_category(name, color=None):
+    """Create or restore a category."""
+    if not name or not str(name).strip():
+        raise ValueError("Category name required")
+    clean_name = str(name).strip()
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_db_connection() as conn:
+        existing = conn.execute(
+            "SELECT id, deleted_at FROM categories WHERE name = ?",
+            (clean_name,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE categories
+                SET deleted_at = NULL,
+                    color = COALESCE(?, color),
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (color, now, existing["id"]),
+            )
+            conn.commit()
+            return existing["id"]
+
+        cursor = conn.execute(
+            """
+            INSERT INTO categories (name, color, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (clean_name, color, now, now),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def _rename_category_labels(conn, old_name, new_name):
+    rows = conn.execute(
+        "SELECT id, labels FROM receipts WHERE labels LIKE ?",
+        (f'%"{old_name}"%',),
+    ).fetchall()
+    for row in rows:
+        labels = json_loads_list(row["labels"])
+        updated = [new_name if l == old_name else l for l in labels]
+        if updated == labels:
+            continue
+        conn.execute(
+            "UPDATE receipts SET labels = ? WHERE id = ?",
+            (json_dumps_list(updated), row["id"]),
+        )
+        sync_receipt_categories(conn, row["id"], updated, source="manual")
+
+
+def _remove_category_labels(conn, name):
+    rows = conn.execute(
+        "SELECT id, labels FROM receipts WHERE labels LIKE ?",
+        (f'%"{name}"%',),
+    ).fetchall()
+    for row in rows:
+        labels = json_loads_list(row["labels"])
+        updated = [l for l in labels if l != name]
+        if updated == labels:
+            continue
+        conn.execute(
+            "UPDATE receipts SET labels = ? WHERE id = ?",
+            (json_dumps_list(updated), row["id"]),
+        )
+        sync_receipt_categories(conn, row["id"], updated, source="manual")
+
+
+def update_category(category_id, name=None, color=None):
+    """Update category name/color."""
+    if not category_id:
+        raise ValueError("Category id required")
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT id, name FROM categories WHERE id = ?",
+            (category_id,),
+        ).fetchone()
+        if not row:
+            raise ValueError("Category not found")
+
+        updates = []
+        values = []
+        old_name = row["name"]
+        if name is not None:
+            new_name = str(name).strip()
+            if not new_name:
+                raise ValueError("Category name required")
+            conflict = conn.execute(
+                "SELECT id FROM categories WHERE name = ? AND id != ? AND deleted_at IS NULL",
+                (new_name, category_id),
+            ).fetchone()
+            if conflict:
+                raise ValueError("Category name already exists")
+            updates.append("name = ?")
+            values.append(new_name)
+        else:
+            new_name = None
+
+        if color is not None:
+            updates.append("color = ?")
+            values.append(color)
+
+        if not updates:
+            return False
+
+        updates.append("updated_at = ?")
+        values.append(now)
+        values.append(category_id)
+
+        conn.execute(
+            f"UPDATE categories SET {', '.join(updates)} WHERE id = ?",
+            values,
+        )
+
+        if new_name and new_name != old_name:
+            _rename_category_labels(conn, old_name, new_name)
+
+        conn.commit()
+    return True
+
+
+def delete_category(category_id):
+    """Soft-delete category and remove labels from receipts."""
+    if not category_id:
+        raise ValueError("Category id required")
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT id, name FROM categories WHERE id = ?",
+            (category_id,),
+        ).fetchone()
+        if not row:
+            raise ValueError("Category not found")
+
+        conn.execute(
+            "UPDATE categories SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            (now, now, category_id),
+        )
+        conn.execute(
+            "DELETE FROM receipt_categories WHERE category_id = ?",
+            (category_id,),
+        )
+        _remove_category_labels(conn, row["name"])
+        conn.commit()
+    return True
 
 
 def get_receipt_stats():
