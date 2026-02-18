@@ -491,6 +491,7 @@ def save_receipt(result, labels=None):
     items_json = json_dumps_list(result.get('items', []))
     labels_json = json_dumps_list(labels or [])
     total_value = parse_total_to_float(result.get('total'))
+    receipt_currency = result.get('currency')
 
     with get_db_connection() as conn:
         cursor = conn.execute(
@@ -527,19 +528,50 @@ def save_receipt(result, labels=None):
                 continue
             
             has_items = True
-            
-            # Parse price
-            price_str = item.get('price', '')
-            line_total = None
-            if price_str:
+
+            quantity = item.get('quantity', 1.0)
+            try:
+                quantity = float(quantity) if quantity is not None else 1.0
+            except (TypeError, ValueError):
+                quantity = 1.0
+
+            # Parse prices
+            line_total = item.get('line_total_amount')
+            if line_total is None:
+                price_str = item.get('price', '')
                 line_total = parse_total_to_float(price_str)
+
+            unit_price = item.get('unit_price_amount')
+            if unit_price is None:
+                unit_price = parse_total_to_float(item.get('unit_price'))
+
+            is_discount = item.get('is_discount')
+            is_discount_value = 1 if is_discount else 0 if is_discount is not None else None
+            unit = item.get('unit')
+            currency = item.get('currency') or receipt_currency
+            tax_rate = item.get('tax_rate')
+            tax_amount = item.get('tax_amount')
             
             conn.execute(
                 """
-                INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO receipt_items (
+                    receipt_id, name, quantity, unit_price, line_total,
+                    unit, currency, is_discount, tax_rate, tax_amount
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (receipt_id, name, 1.0, line_total)
+                (
+                    receipt_id,
+                    name,
+                    quantity,
+                    unit_price,
+                    line_total,
+                    unit,
+                    currency,
+                    is_discount_value,
+                    tax_rate,
+                    tax_amount,
+                )
             )
         
         # If no items were extracted but we have a total, create a placeholder item
@@ -656,7 +688,8 @@ def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filt
         # Fetch all items from receipt_items table
         all_items = conn.execute(
             """
-            SELECT receipt_id, name, quantity, unit_price, line_total
+            SELECT receipt_id, name, quantity, unit_price, line_total,
+                   unit, currency, is_discount, tax_rate, tax_amount
             FROM receipt_items
             ORDER BY id
             """
@@ -672,7 +705,15 @@ def get_all_receipts(store_filter=None, date_from=None, date_to=None, label_filt
             # Format item like the original JSON structure
             item_dict = {
                 'name': item['name'],
-                'price': f"{item['line_total']:.2f} €" if item['line_total'] else ''
+                'price': f"{item['line_total']:.2f} €" if item['line_total'] else '',
+                'quantity': item['quantity'],
+                'unit_price': item['unit_price'],
+                'line_total': item['line_total'],
+                'unit': item['unit'],
+                'currency': item['currency'],
+                'is_discount': bool(item['is_discount']) if item['is_discount'] is not None else None,
+                'tax_rate': item['tax_rate'],
+                'tax_amount': item['tax_amount'],
             }
             items_by_receipt[receipt_id].append(item_dict)
 
@@ -826,7 +867,8 @@ def get_receipt_items(receipt_id):
     with get_db_connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, name, quantity, unit_price, line_total
+            SELECT id, name, quantity, unit_price, line_total,
+                   unit, currency, is_discount, tax_rate, tax_amount
             FROM receipt_items
             WHERE receipt_id = ?
             ORDER BY id
@@ -841,6 +883,11 @@ def get_receipt_items(receipt_id):
             'quantity': row['quantity'],
             'unit_price': row['unit_price'],
             'line_total': row['line_total'],
+            'unit': row['unit'],
+            'currency': row['currency'],
+            'is_discount': bool(row['is_discount']) if row['is_discount'] is not None else None,
+            'tax_rate': row['tax_rate'],
+            'tax_amount': row['tax_amount'],
             'price': f"{row['line_total']:.2f} €" if row['line_total'] else ''
         }
         for row in rows
