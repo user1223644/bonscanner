@@ -3,6 +3,57 @@ let currentPage = 1;
 const pageSize = 25;
 let itemCache = {};
 
+function sanitizeNumericInput(value) {
+  if (value === null || value === undefined) return "";
+  let cleaned = String(value).replace(/[^\d,.\-]/g, "");
+  if (cleaned === "") return "";
+
+  const isNegative = cleaned.startsWith("-");
+  cleaned = cleaned.replace(/-/g, "");
+  const sign = isNegative ? "-" : "";
+
+  let unsigned = cleaned;
+  const lastComma = unsigned.lastIndexOf(",");
+  const lastDot = unsigned.lastIndexOf(".");
+  const sepIndex = Math.max(lastComma, lastDot);
+  if (sepIndex !== -1) {
+    const sepChar = unsigned[sepIndex];
+    const intPart = unsigned.slice(0, sepIndex).replace(/[.,]/g, "");
+    const fracPart = unsigned.slice(sepIndex + 1).replace(/[.,]/g, "");
+    unsigned = intPart + sepChar + fracPart;
+  } else {
+    unsigned = unsigned.replace(/[.,]/g, "");
+  }
+
+  return sign + unsigned;
+}
+
+function normalizeDecimal(value) {
+  return sanitizeNumericInput(value).replace(",", ".");
+}
+
+function isNumericString(value) {
+  if (value === "" || value === "-" || value === "." || value === "-.") return false;
+  return !Number.isNaN(Number.parseFloat(value));
+}
+
+function bindNumericInput(input) {
+  if (!input || input.dataset.numericBound === "true") return;
+  input.dataset.numericBound = "true";
+  input.setAttribute("inputmode", "decimal");
+  input.setAttribute("pattern", "[0-9]*[\\.,]?[0-9]*");
+  input.addEventListener("input", () => {
+    const cleaned = sanitizeNumericInput(input.value);
+    if (cleaned !== input.value) input.value = cleaned;
+  });
+}
+
+function bindNumericInputs(root = document) {
+  root
+    .querySelectorAll('input[data-numeric="true"]')
+    .forEach((input) => bindNumericInput(input));
+}
+
 function formatDate(dateStr) {
   if (!dateStr || dateStr === '-') return '-';
   
@@ -70,8 +121,8 @@ async function loadReceipts() {
     const storeFilter = document.getElementById('store-filter')?.value.trim();
     const dateFrom = document.getElementById('date-from-filter')?.value;
     const dateTo = document.getElementById('date-to-filter')?.value;
-    const amountMin = document.getElementById('amount-min-filter')?.value;
-    const amountMax = document.getElementById('amount-max-filter')?.value;
+    const amountMinRaw = document.getElementById('amount-min-filter')?.value;
+    const amountMaxRaw = document.getElementById('amount-max-filter')?.value;
     const paymentFilter = document.getElementById('payment-filter')?.value.trim();
     const labelFilterValue = document.getElementById('label-filter')?.value;
 
@@ -79,8 +130,10 @@ async function loadReceipts() {
     if (storeFilter) params.append('store', storeFilter);
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
-    if (amountMin) params.append('amount_min', amountMin);
-    if (amountMax) params.append('amount_max', amountMax);
+    const amountMin = normalizeDecimal(amountMinRaw);
+    if (isNumericString(amountMin)) params.append('amount_min', amountMin);
+    const amountMax = normalizeDecimal(amountMaxRaw);
+    if (isNumericString(amountMax)) params.append('amount_max', amountMax);
     if (paymentFilter) params.append('payment_method', paymentFilter);
     if (labelFilterValue) params.append('label', labelFilterValue);
     params.append('page', String(currentPage));
@@ -106,7 +159,7 @@ async function loadReceipts() {
 
     if (receipts.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="5" class="empty-state">Keine Belege vorhanden</td></tr>';
+        '<tr><td colspan="6" class="empty-state">Keine Belege vorhanden</td></tr>';
       updatePagination(totalPages, totalCount);
       return;
     }
@@ -125,10 +178,11 @@ async function loadReceipts() {
             </button>
           </td>
           <td>${renderCategories(r.id, r.labels)}</td>
+          <td><span class="editable" onclick="editField(${r.id}, 'payment_method', this)">${r.payment_method || "-"}</span></td>
           <td><span class="editable" onclick="editField(${r.id}, 'total', this)">${r.total ? r.total.toFixed(2) + " \u20ac" : "-"}</span></td>
         </tr>
         <tr id="details-${r.id}" class="detail-row" style="display: none;">
-          <td colspan="5">
+          <td colspan="6">
             <div class="detail-content">
               <div class="detail-section">
                 <div class="detail-header">
@@ -140,7 +194,7 @@ async function loadReceipts() {
                 </div>
                 <div id="add-item-form-${r.id}" class="add-item-form" style="display: none;">
                   <input type="text" id="item-name-${r.id}" placeholder="Artikelname" class="item-input" />
-                  <input type="number" id="item-price-${r.id}" placeholder="Preis" step="0.01" class="item-input" />
+                  <input type="text" id="item-price-${r.id}" placeholder="Preis" class="item-input" data-numeric="true" />
                   <button onclick="saveNewItem(${r.id})" class="save-btn">Speichern</button>
                   <button onclick="cancelAddItem(${r.id})" class="cancel-btn">Abbrechen</button>
                 </div>
@@ -157,10 +211,11 @@ async function loadReceipts() {
       `,
       )
       .join("");
+    bindNumericInputs();
     updatePagination(totalPages, totalCount);
   } catch (e) {
     document.getElementById("receipts-body").innerHTML =
-      '<tr><td colspan="5" class="empty-state">Fehler beim Laden</td></tr>';
+      '<tr><td colspan="6" class="empty-state">Fehler beim Laden</td></tr>';
     updatePagination(1, 0);
   }
 }
@@ -195,6 +250,7 @@ function clearFilters() {
 
 // Attach filter event listeners
 document.addEventListener('DOMContentLoaded', () => {
+  bindNumericInputs();
   document.getElementById('text-filter')?.addEventListener('input', debounceFilter);
   document.getElementById('store-filter')?.addEventListener('input', debounceFilter);
   document.getElementById('date-from-filter')?.addEventListener('change', resetPageAndLoad);
@@ -344,7 +400,9 @@ function cancelAddItem(receiptId) {
 
 async function saveNewItem(receiptId) {
   const name = document.getElementById(`item-name-${receiptId}`).value.trim();
-  const price = document.getElementById(`item-price-${receiptId}`).value;
+  const priceRaw = document.getElementById(`item-price-${receiptId}`).value;
+  const priceValue = normalizeDecimal(priceRaw);
+  const price = Number.parseFloat(priceValue);
 
   if (!name) {
     alert("Bitte Artikelname eingeben");
@@ -355,7 +413,7 @@ async function saveNewItem(receiptId) {
     const res = await fetch(`${API_URL}/receipts/${receiptId}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, price: parseFloat(price) || 0 }),
+      body: JSON.stringify({ name, price: Number.isNaN(price) ? 0 : price }),
     });
 
     if (res.ok) {
@@ -482,6 +540,11 @@ function editField(id, field, el) {
   const currentValue = el.textContent.replace(" €", "").trim();
   const input = document.createElement("input");
   input.className = "edit-input";
+  if (field === "total") {
+    input.type = "text";
+    input.dataset.numeric = "true";
+    bindNumericInput(input);
+  }
   input.value = currentValue === "-" ? "" : currentValue;
 
   const cellRect = cell.getBoundingClientRect();

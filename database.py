@@ -669,7 +669,7 @@ def update_receipt_labels(receipt_id, labels):
 
 def update_receipt(receipt_id, updates):
     """Update receipt fields."""
-    allowed_fields = ['store_name', 'date', 'total', 'labels']
+    allowed_fields = ['store_name', 'date', 'total', 'labels', 'payment_method']
     set_parts = []
     values = []
     label_updates = None

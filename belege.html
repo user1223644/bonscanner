@@ -214,6 +214,17 @@
         outline: none;
       }
 
+      input[type="number"]::-webkit-outer-spin-button,
+      input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+      }
+
       .category-tag {
         display: inline-block;
         padding: 0.2rem 0.5rem;
@@ -560,18 +571,18 @@
           placeholder="Bis Datum"
         />
         <input
-          type="number"
+          type="text"
           id="amount-min-filter"
           class="filter-input"
           placeholder="Min. Betrag"
-          step="0.01"
+          data-numeric="true"
         />
         <input
-          type="number"
+          type="text"
           id="amount-max-filter"
           class="filter-input"
           placeholder="Max. Betrag"
-          step="0.01"
+          data-numeric="true"
         />
         <input
           type="text"
@@ -595,12 +606,13 @@
               <th>Geschäft</th>
               <th></th>
               <th>Kategorie</th>
+              <th>Zahlungsart</th>
               <th>Betrag</th>
             </tr>
           </thead>
           <tbody id="receipts-body">
             <tr>
-              <td colspan="5" class="empty-state">Lade Belege...</td>
+              <td colspan="6" class="empty-state">Lade Belege...</td>
             </tr>
           </tbody>
         </table>
