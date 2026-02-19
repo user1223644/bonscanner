@@ -111,8 +111,18 @@ function renderRules(rules) {
           />
           <input type="checkbox" class="rule-active" ${rule.is_active ? "checked" : ""} />
           <div class="rule-actions">
-            <button class="btn-small save-rule">Speichern</button>
-            <button class="btn-small danger delete-rule">Löschen</button>
+            <button class="icon-btn save-rule" title="Speichern" aria-label="Regel speichern">
+              <svg viewBox="0 0 24 24">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </button>
+            <button class="icon-btn danger delete-rule" title="Löschen" aria-label="Regel löschen">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M6 6l1 14h10l1-14" />
+              </svg>
+            </button>
           </div>
         </div>
       `,
@@ -154,14 +164,41 @@ function renderRules(rules) {
 }
 
 function setupHandlers() {
+  const openBtn = document.getElementById("open-rule-modal");
+  const modal = document.getElementById("rule-modal");
+  const cancelBtn = document.getElementById("cancel-rule-btn");
   const addRuleBtn = document.getElementById("add-rule-btn");
-  if (!addRuleBtn) return;
-  addRuleBtn.addEventListener("click", async () => {
+  const patternInput = document.getElementById("rule-pattern");
+
+  const closeModal = () => {
+    modal?.classList.remove("show");
+    if (patternInput) patternInput.value = "";
+  };
+
+  openBtn?.addEventListener("click", () => {
+    modal?.classList.add("show");
+    patternInput?.focus();
+  });
+
+  cancelBtn?.addEventListener("click", closeModal);
+  modal?.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeModal();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal?.classList.contains("show")) {
+      closeModal();
+    }
+  });
+
+  const submitRule = async () => {
     const categoryId = document.getElementById("rule-category")?.value;
     const ruleType = document.getElementById("rule-type")?.value;
     const matchType = document.getElementById("rule-match")?.value;
     const pattern = document.getElementById("rule-pattern")?.value.trim();
     const priorityRaw = document.getElementById("rule-priority")?.value;
+    const active = document.getElementById("rule-active")?.checked ?? true;
     if (!categoryId || !ruleType || !pattern) return;
     await fetch(`${API_URL}/category-rules`, {
       method: "POST",
@@ -172,12 +209,18 @@ function setupHandlers() {
         match_type: matchType,
         pattern,
         priority: Number(priorityRaw || 100),
-        is_active: true,
+        is_active: active,
       }),
     });
-    const patternInput = document.getElementById("rule-pattern");
-    if (patternInput) patternInput.value = "";
+    closeModal();
     await loadRules();
+  };
+
+  addRuleBtn?.addEventListener("click", submitRule);
+  patternInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      submitRule();
+    }
   });
 }
 
