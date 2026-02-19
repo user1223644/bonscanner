@@ -41,6 +41,20 @@ async function requestJSON(path, options = {}) {
   return data;
 }
 
+async function requestWithResponse(path, options = {}) {
+  const res = await fetch(normalizeEndpoint(path), options);
+  const data = await parseResponse(res);
+  if (!res.ok) {
+    const message =
+      (data && data.error) ||
+      (data && data.message) ||
+      (typeof data === "string" ? data : null) ||
+      `Request failed: ${res.status}`;
+    throw new Error(message);
+  }
+  return { data, res };
+}
+
 async function fetchJSON(url, options) {
   return requestJSON(url, options);
 }
@@ -48,6 +62,7 @@ async function fetchJSON(url, options) {
 const API = {
   baseUrl: API_URL,
   requestJSON,
+  requestWithResponse,
   get(path) {
     return requestJSON(path);
   },

@@ -2,6 +2,7 @@ let labelColorMap = {};
 let currentPage = 1;
 const pageSize = 25;
 let itemCache = {};
+const api = window.API;
 
 function sanitizeNumericInput(value) {
   if (value === null || value === undefined) return "";
@@ -93,8 +94,7 @@ function formatDate(dateStr) {
 
 async function loadReceipts() {
   try {
-    const categoryRes = await fetch(`${API_URL}/categories`);
-    const categories = await categoryRes.json();
+    const categories = await api.get("/categories");
     const palette = CATEGORY_COLORS.length ? CATEGORY_COLORS : ["#f5a623"];
     labelColorMap = {};
     categories.forEach((cat, i) => {
@@ -140,10 +140,9 @@ async function loadReceipts() {
     params.append('page_size', String(pageSize));
 
     const queryString = params.toString();
-    const url = `${API_URL}/receipts${queryString ? '?' + queryString : ''}`;
-    
-    const res = await fetch(url);
-    const receipts = await res.json();
+    const url = `/receipts${queryString ? '?' + queryString : ''}`;
+
+    const { data: receipts, res } = await api.requestWithResponse(url);
     const totalCountHeader = res.headers.get("X-Total-Count");
     const totalCount = totalCountHeader ? Number(totalCountHeader) : receipts.length;
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -410,16 +409,12 @@ async function saveNewItem(receiptId) {
   }
 
   try {
-    const res = await fetch(`${API_URL}/receipts/${receiptId}/items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, price: Number.isNaN(price) ? 0 : price }),
+    await api.post(`/receipts/${receiptId}/items`, {
+      name,
+      price: Number.isNaN(price) ? 0 : price,
     });
-
-    if (res.ok) {
-      cancelAddItem(receiptId);
-      await loadReceipts();
-    }
+    cancelAddItem(receiptId);
+    await loadReceipts();
   } catch (e) {
     alert("Fehler beim Hinzufügen des Artikels");
   }
@@ -431,13 +426,8 @@ async function deleteItem(receiptId, itemId) {
   }
 
   try {
-    const res = await fetch(`${API_URL}/receipts/${receiptId}/items/${itemId}`, {
-      method: "DELETE",
-    });
-
-    if (res.ok) {
-      await loadReceipts();
-    }
+    await api.delete(`/receipts/${receiptId}/items/${itemId}`);
+    await loadReceipts();
   } catch (e) {
     alert("Fehler beim Löschen des Artikels");
   }
@@ -489,17 +479,10 @@ async function editItemCategories(receiptId, itemId) {
   if (input === null) return;
   const categories = parseCategoryAllocations(input);
   try {
-    const res = await fetch(
-      `${API_URL}/receipts/${receiptId}/items/${itemId}/categories`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categories }),
-      },
-    );
-    if (res.ok) {
-      await loadReceipts();
-    }
+    await api.patch(`/receipts/${receiptId}/items/${itemId}/categories`, {
+      categories,
+    });
+    await loadReceipts();
   } catch (e) {
     alert("Fehler beim Speichern der Kategorien");
   }
@@ -590,11 +573,7 @@ function editField(id, field, el) {
     isSaving = true;
     const payload = { [field]: input.value.trim() || null };
     try {
-      await fetch(`${API_URL}/receipts/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      await api.patch(`/receipts/${id}`, payload);
     } catch (e) {
       console.error(e);
     }
@@ -638,11 +617,7 @@ function addCategory(id, el) {
 
       const allLabels = [...new Set([...labelsData, ...newLabels])];
 
-      await fetch(`${API_URL}/receipts/${id}/labels`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labels: allLabels }),
-      });
+      await api.patch(`/receipts/${id}/labels`, { labels: allLabels });
     }
     loadReceipts();
   };
@@ -664,11 +639,7 @@ async function deleteLabel(id, label, event) {
 
   const newLabels = labelsData.filter((l) => l !== label);
 
-  await fetch(`${API_URL}/receipts/${id}/labels`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ labels: newLabels }),
-  });
+  await api.patch(`/receipts/${id}/labels`, { labels: newLabels });
 
   loadReceipts();
 }
