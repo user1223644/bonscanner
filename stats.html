@@ -411,6 +411,10 @@
         color: var(--text-primary);
       }
 
+      .file-input.hidden {
+        display: none;
+      }
+
       tr:last-child td {
         border-bottom: none;
       }
@@ -784,7 +788,12 @@
               <a class="btn-small" id="export-json-link" href="#">JSON Export</a>
               <a class="btn-small" id="export-csv-link" href="#">CSV Export</a>
               <a class="btn-small" id="export-db-link" href="#">DB Download</a>
-              <input type="file" id="backup-file" class="file-input" accept=".json" />
+              <input
+                type="file"
+                id="backup-file"
+                class="file-input hidden"
+                accept=".json"
+              />
               <button class="btn-small" id="import-backup-btn">Backup importieren</button>
               <div id="backup-status" class="empty-hint"></div>
             </div>

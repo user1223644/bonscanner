@@ -547,35 +547,45 @@ function setupBackupHandlers() {
   if (exportDbLink) exportDbLink.href = `${API_URL}/export/db`;
 
   const importBtn = document.getElementById("import-backup-btn");
-  if (importBtn) {
-    importBtn.addEventListener("click", async () => {
-      const fileInput = document.getElementById("backup-file");
-      const status = document.getElementById("backup-status");
-      const file = fileInput?.files?.[0];
-      if (!file) {
-        if (status) status.textContent = "Bitte JSON-Datei auswählen.";
+  const fileInput = document.getElementById("backup-file");
+  const status = document.getElementById("backup-status");
+
+  const runImport = async (file) => {
+    if (!file) return;
+    if (status) status.textContent = "Import läuft...";
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`${API_URL}/import/json`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (status) status.textContent = data.error || "Import fehlgeschlagen.";
         return;
       }
-      if (status) status.textContent = "Import läuft...";
-      const formData = new FormData();
-      formData.append("file", file);
-      try {
-        const res = await fetch(`${API_URL}/import/json`, {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          if (status) status.textContent = data.error || "Import fehlgeschlagen.";
-          return;
-        }
-        if (status) {
-          status.textContent = `Importiert: ${JSON.stringify(data.imported)}`;
-        }
-        await Promise.all([loadCategories(), loadReceipts(), loadStats()]);
-      } catch (e) {
-        if (status) status.textContent = "Import fehlgeschlagen.";
+      if (status) {
+        status.textContent = `Importiert: ${JSON.stringify(data.imported)}`;
       }
+      await Promise.all([loadCategories(), loadReceipts(), loadStats()]);
+    } catch (e) {
+      if (status) status.textContent = "Import fehlgeschlagen.";
+    }
+  };
+
+  if (fileInput) {
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      await runImport(file);
+      fileInput.value = "";
+    });
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener("click", () => {
+      if (status) status.textContent = "";
+      fileInput?.click();
     });
   }
 }
