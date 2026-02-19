@@ -52,8 +52,18 @@ function renderCategories(categories) {
           <input type="text" class="category-name-input" value="${escapeHtml(cat.name)}" />
           <span class="category-usage">${cat.usage_count || 0}</span>
           <div class="category-actions">
-            <button class="btn-small save-category">Speichern</button>
-            <button class="btn-small danger delete-category">Löschen</button>
+            <button class="icon-btn save-category" title="Speichern" aria-label="Kategorie speichern">
+              <svg viewBox="0 0 24 24">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </button>
+            <button class="icon-btn danger delete-category" title="Löschen" aria-label="Kategorie löschen">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M6 6l1 14h10l1-14" />
+              </svg>
+            </button>
           </div>
         </div>
       `;
@@ -90,11 +100,36 @@ function renderCategories(categories) {
 }
 
 function setupHandlers() {
-  const addCategoryBtn = document.getElementById("add-category-btn");
-  if (!addCategoryBtn) return;
-  addCategoryBtn.addEventListener("click", async () => {
-    const nameInput = document.getElementById("new-category-name");
-    const colorInput = document.getElementById("new-category-color");
+  const openBtn = document.getElementById("open-category-modal");
+  const modal = document.getElementById("category-modal");
+  const cancelBtn = document.getElementById("cancel-category-btn");
+  const createBtn = document.getElementById("create-category-btn");
+  const nameInput = document.getElementById("new-category-name");
+  const colorInput = document.getElementById("new-category-color");
+
+  const closeModal = () => {
+    modal?.classList.remove("show");
+    if (nameInput) nameInput.value = "";
+  };
+
+  openBtn?.addEventListener("click", () => {
+    modal?.classList.add("show");
+    nameInput?.focus();
+  });
+
+  cancelBtn?.addEventListener("click", closeModal);
+  modal?.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeModal();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal?.classList.contains("show")) {
+      closeModal();
+    }
+  });
+
+  const submitCategory = async () => {
     const name = nameInput?.value.trim();
     const color = colorInput?.value;
     if (!name) return;
@@ -103,8 +138,15 @@ function setupHandlers() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, color }),
     });
-    if (nameInput) nameInput.value = "";
+    closeModal();
     await loadCategories();
+  };
+
+  createBtn?.addEventListener("click", submitCategory);
+  nameInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      submitCategory();
+    }
   });
 }
 
