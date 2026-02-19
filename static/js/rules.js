@@ -1,27 +1,8 @@
 let categoriesCache = [];
 let rulesCache = [];
+let modalController = null;
 
-const ICONS = {
-  save: `
-    <svg viewBox="0 0 24 24">
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  `,
-  trash: `
-    <svg viewBox="0 0 24 24">
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M6 6l1 14h10l1-14" />
-    </svg>
-  `,
-  check: `
-    <svg viewBox="0 0 24 24">
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  `,
-};
-
-const SPINNER = '<span class="spinner" aria-hidden="true"></span>';
+const ui = window.BonscannerUI;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => {
@@ -122,80 +103,8 @@ function updateRuleCache(id, updates) {
   );
 }
 
-function getToastContainer() {
-  return document.getElementById("toast-container");
-}
-
-function showToast(message, options = {}) {
-  const container = getToastContainer();
-  if (!container) return;
-  const toast = document.createElement("div");
-  toast.className = `toast${options.tone === "error" ? " error" : ""}`;
-  const text = document.createElement("span");
-  text.textContent = message;
-  toast.appendChild(text);
-
-  let actionButton;
-  if (options.actionLabel && typeof options.onAction === "function") {
-    actionButton = document.createElement("button");
-    actionButton.type = "button";
-    actionButton.textContent = options.actionLabel;
-    actionButton.addEventListener("click", () => {
-      options.onAction();
-      toast.remove();
-    });
-    toast.appendChild(actionButton);
-  }
-
-  container.appendChild(toast);
-  requestAnimationFrame(() => {
-    toast.classList.add("show");
-  });
-
-  const timeout = setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 200);
-  }, options.duration || 4000);
-
-  if (actionButton) {
-    actionButton.addEventListener("click", () => clearTimeout(timeout));
-  }
-}
-
-function setButtonLoading(button) {
-  if (!button) return;
-  button.classList.add("loading");
-  button.disabled = true;
-  button.innerHTML = SPINNER;
-}
-
-function restoreButton(button) {
-  if (!button) return;
-  const icon = button.dataset.icon;
-  button.classList.remove("loading");
-  button.disabled = false;
-  button.innerHTML = ICONS[icon] || "";
-}
-
-function showButtonSuccess(button) {
-  if (!button) return;
-  button.classList.remove("loading");
-  button.innerHTML = ICONS.check;
-  setTimeout(() => restoreButton(button), 800);
-}
-
-function openRuleModal() {
-  const modal = document.getElementById("rule-modal");
-  modal?.classList.add("show");
-  const input = document.getElementById("rule-pattern");
-  input?.focus();
-}
-
-function closeRuleModal() {
-  const modal = document.getElementById("rule-modal");
-  modal?.classList.remove("show");
-  const input = document.getElementById("rule-pattern");
-  if (input) input.value = "";
+function ensureUI() {
+  return ui || window.BonscannerUI;
 }
 
 function renderRules(rules) {
@@ -209,7 +118,9 @@ function renderRules(rules) {
         <button class="btn-small btn-primary empty-cta">Regel anlegen</button>
       </div>
     `;
-    container.querySelector(".empty-cta")?.addEventListener("click", openRuleModal);
+    container.querySelector(".empty-cta")?.addEventListener("click", () => {
+      modalController?.open?.();
+    });
     return;
   }
   container.innerHTML = rules
@@ -233,13 +144,13 @@ function renderRules(rules) {
               data-icon="save"
               title="Speichern"
               aria-label="Regel speichern"
-            >${ICONS.save}</button>
+            >${ensureUI()?.icons?.save || ""}</button>
             <button
               class="icon-btn danger delete-rule"
               data-icon="trash"
               title="Löschen"
               aria-label="Regel löschen"
-            >${ICONS.trash}</button>
+            >${ensureUI()?.icons?.trash || ""}</button>
           </div>
         </div>
       `,
@@ -265,7 +176,7 @@ function renderRules(rules) {
       const deleteBtn = row.querySelector(".delete-rule");
       btn.disabled = true;
       deleteBtn?.setAttribute("disabled", "true");
-      setButtonLoading(btn);
+      ensureUI()?.setButtonLoading(btn);
 
       try {
         const res = await fetch(`${API_URL}/category-rules/${id}`, {
@@ -278,11 +189,8 @@ function renderRules(rules) {
           throw new Error(data.error || "Speichern fehlgeschlagen.");
         }
         updateRuleCache(id, payload);
-        showButtonSuccess(btn);
-        row.classList.add("flash");
-        row.addEventListener("animationend", () => row.classList.remove("flash"), {
-          once: true,
-        });
+        ensureUI()?.showButtonSuccess(btn);
+        ensureUI()?.flashRow(row);
       } catch (error) {
         row.querySelector(".rule-category").value = previous.category_id;
         row.querySelector(".rule-type").value = previous.rule_type;
@@ -290,8 +198,10 @@ function renderRules(rules) {
         row.querySelector(".rule-pattern").value = previous.pattern || "";
         row.querySelector(".rule-priority").value = previous.priority ?? 100;
         row.querySelector(".rule-active").checked = !!previous.is_active;
-        restoreButton(btn);
-        showToast(error.message || "Speichern fehlgeschlagen.", { tone: "error" });
+        ensureUI()?.restoreButton(btn);
+        ensureUI()?.showToast(error.message || "Speichern fehlgeschlagen.", {
+          tone: "error",
+        });
       } finally {
         btn.disabled = false;
         deleteBtn?.removeAttribute("disabled");
@@ -311,32 +221,8 @@ function renderRules(rules) {
       saveBtn?.setAttribute("disabled", "true");
       btn.setAttribute("disabled", "true");
 
-      const height = row.offsetHeight;
-      row.style.height = `${height}px`;
-      row.classList.add("removing");
-      requestAnimationFrame(() => {
-        row.style.height = "0px";
-        row.style.opacity = "0";
-        row.style.marginTop = "0";
-        row.style.marginBottom = "0";
-        row.style.paddingTop = "0";
-        row.style.paddingBottom = "0";
-        row.style.borderWidth = "0";
-      });
-
-      const transitionDone = new Promise((resolve) => {
-        const timer = setTimeout(resolve, 260);
-        row.addEventListener(
-          "transitionend",
-          (event) => {
-            if (event.propertyName === "height") {
-              clearTimeout(timer);
-              resolve();
-            }
-          },
-          { once: true },
-        );
-      });
+      const uiHelpers = ensureUI();
+      const transitionDone = uiHelpers?.animateRowRemoval(row);
 
       try {
         const res = await fetch(`${API_URL}/category-rules/${id}`, { method: "DELETE" });
@@ -350,7 +236,7 @@ function renderRules(rules) {
         if (rulesCache.length === 0) {
           renderRules(rulesCache);
         }
-        showToast("Regel gelöscht", {
+        uiHelpers?.showToast("Regel gelöscht", {
           actionLabel: "Rückgängig",
           onAction: async () => {
             await fetch(`${API_URL}/category-rules`, {
@@ -369,42 +255,35 @@ function renderRules(rules) {
           },
         });
       } catch (error) {
-        row.classList.remove("removing");
-        row.style.height = "";
-        row.style.opacity = "";
-        row.style.marginTop = "";
-        row.style.marginBottom = "";
-        row.style.paddingTop = "";
-        row.style.paddingBottom = "";
-        row.style.borderWidth = "";
+        uiHelpers?.resetRowStyles(row);
         saveBtn?.removeAttribute("disabled");
         btn.removeAttribute("disabled");
-        showToast(error.message || "Löschen fehlgeschlagen.", { tone: "error" });
+        uiHelpers?.showToast(error.message || "Löschen fehlgeschlagen.", {
+          tone: "error",
+        });
       }
     });
   });
 }
 
 function setupHandlers() {
+  const uiHelpers = ensureUI();
   const openBtn = document.getElementById("open-rule-modal");
   const modal = document.getElementById("rule-modal");
   const cancelBtn = document.getElementById("cancel-rule-btn");
   const addRuleBtn = document.getElementById("add-rule-btn");
   const patternInput = document.getElementById("rule-pattern");
 
-  openBtn?.addEventListener("click", openRuleModal);
+  modalController = uiHelpers?.bindModal({
+    openButton: openBtn,
+    modal,
+    onClose: () => {
+      if (patternInput) patternInput.value = "";
+    },
+    focusTarget: patternInput,
+  });
 
-  cancelBtn?.addEventListener("click", closeRuleModal);
-  modal?.addEventListener("click", (event) => {
-    if (event.target === modal) {
-      closeRuleModal();
-    }
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modal?.classList.contains("show")) {
-      closeRuleModal();
-    }
-  });
+  cancelBtn?.addEventListener("click", () => modalController?.close());
 
   const submitRule = async () => {
     const categoryId = document.getElementById("rule-category")?.value;
@@ -426,7 +305,7 @@ function setupHandlers() {
         is_active: active,
       }),
     });
-    closeRuleModal();
+    modalController?.close();
     await loadRules();
   };
 
