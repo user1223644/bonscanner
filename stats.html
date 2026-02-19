@@ -8,128 +8,12 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="static/css/base.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="static/js/theme-init.js"></script>
+    <script src="static/js/core/theme-init.js"></script>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      :root {
-        --bg-primary: #f5f5f5;
-        --bg-card: #fff;
-        --bg-hover: #fafafa;
-        --text-primary: #1a1a1a;
-        --text-secondary: #666;
-        --text-muted: #999;
-        --border-color: #eee;
-        --border-light: #f0f0f0;
-        --accent: #f5a623;
-        --accent-bg: #fff8f0;
-      }
-
-      [data-theme="dark"] {
-        --bg-primary: #0d1117;
-        --bg-card: #161b22;
-        --bg-hover: #21262d;
-        --text-primary: #e6edf3;
-        --text-secondary: #8b949e;
-        --text-muted: #6e7681;
-        --border-color: #30363d;
-        --border-light: #21262d;
-        --accent: #f5a623;
-        --accent-bg: rgba(245, 166, 35, 0.15);
-      }
-
-      body {
-        font-family:
-          "Inter",
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        min-height: 100vh;
-        display: flex;
-      }
 
       /* Sidebar */
-      .sidebar {
-        width: 220px;
-        background: var(--bg-card);
-        border-right: 1px solid var(--border-color);
-        padding: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        height: 100vh;
-      }
-
-      .logo {
-        font-weight: 700;
-        font-size: 1.1rem;
-        color: var(--accent);
-        margin-bottom: 0.25rem;
-      }
-
-      .logo-sub {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-bottom: 2rem;
-      }
-
-      .nav-menu {
-        list-style: none;
-        flex: 1;
-      }
-
-      .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 0.9rem;
-        margin-bottom: 0.25rem;
-        transition: all 0.2s;
-      }
-
-      .nav-item:hover {
-        background: var(--bg-hover);
-        color: var(--text-primary);
-      }
-      .nav-item.active {
-        background: var(--accent-bg);
-        color: var(--accent);
-        font-weight: 500;
-      }
-      .nav-icon {
-        width: 18px;
-        height: 18px;
-        stroke: currentColor;
-        stroke-width: 2;
-        fill: none;
-      }
-
-      .theme-toggle {
-        background: var(--bg-hover);
-        border: none;
-        padding: 0.75rem;
-        border-radius: 8px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-secondary);
-        margin-top: auto;
-      }
-      .theme-toggle:hover {
-        background: var(--border-color);
-      }
 
       .delete-tag-btn-stats {
         background: none;
@@ -145,13 +29,6 @@
       }
       .delete-tag-btn-stats:hover {
         opacity: 1;
-      }
-      .theme-toggle svg {
-        width: 18px;
-        height: 18px;
-        stroke: currentColor;
-        stroke-width: 2;
-        fill: none;
       }
 
       /* Main Content */
@@ -298,6 +175,7 @@
         border-radius: 12px;
         border: 1px solid var(--border-color);
         overflow: hidden;
+        margin-top: 2rem;
       }
 
       .table-header {
@@ -342,6 +220,78 @@
         font-size: 0.9rem;
       }
 
+      .management-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .management-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .management-title {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .btn-small {
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-hover);
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 0.8rem;
+      }
+
+      .btn-small.danger {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.4);
+      }
+
+      .empty-hint {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        padding: 0.75rem 0;
+      }
+
+      .backup-actions {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .backup-actions a {
+        text-decoration: none;
+        text-align: center;
+      }
+
+      .backup-actions .btn-small,
+      .backup-actions .file-input {
+        width: 100%;
+      }
+
+      .file-input {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        padding: 0.5rem;
+        border-radius: 6px;
+        color: var(--text-primary);
+      }
+
+      .file-input.hidden {
+        display: none;
+      }
+
       tr:last-child td {
         border-bottom: none;
       }
@@ -377,6 +327,9 @@
       /* Responsive */
       @media (max-width: 1024px) {
         .stats-row {
+          grid-template-columns: 1fr 1fr;
+        }
+        .backup-row {
           grid-template-columns: 1fr 1fr;
         }
         .charts-row {
@@ -431,6 +384,61 @@
         font-size: 0.75rem;
         color: var(--text-muted);
         text-transform: uppercase;
+      }
+
+      .insights-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+        align-items: stretch;
+      }
+
+      .backup-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        margin-top: 2rem;
+        align-items: stretch;
+      }
+
+      .insight-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        height: 100%;
+      }
+
+      .insight-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
+
+      .insight-item {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--border-light);
+      }
+
+      .insight-item:last-child {
+        border-bottom: none;
+      }
+
+      .alert-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        background: rgba(245, 166, 35, 0.15);
+        color: var(--accent);
+        margin-bottom: 0.4rem;
       }
 
       /* Category Tags */
@@ -512,10 +520,13 @@
         .stats-row {
           grid-template-columns: 1fr;
         }
+        .backup-row {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
-  <body>
+  <body class="app-shell">
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo">~/bonscanner</div>
@@ -542,6 +553,27 @@
           </a>
         </li>
         <li>
+          <a href="kategorien.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M4 4h7v7H4z" />
+              <path d="M13 4h7v7h-7z" />
+              <path d="M4 13h7v7H4z" />
+              <path d="M13 13h7v7h-7z" />
+            </svg>
+            Kategorien
+          </a>
+        </li>
+        <li>
+          <a href="regeln.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+            Regeln
+          </a>
+        </li>
+        <li>
           <a href="hochladen.html" class="nav-item">
             <svg class="nav-icon" viewBox="0 0 24 24">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -563,7 +595,7 @@
     <main class="main">
       <div class="topbar">
         <h1>Dashboard</h1>
-        <a href="index.html" class="upload-btn">+ Beleg hochladen</a>
+        <a href="hochladen.html" class="upload-btn">+ Beleg hochladen</a>
       </div>
 
       <div class="content">
@@ -589,6 +621,18 @@
           </div>
         </div>
 
+        <div class="insights-row">
+          <div class="insight-card">
+            <div class="insight-title">Trend & Alerts</div>
+            <div id="trend-summary" class="empty-hint">Lade Trend...</div>
+            <div id="alerts-list"></div>
+          </div>
+          <div class="insight-card">
+            <div class="insight-title">Top Geschäfte</div>
+            <div id="top-stores" class="empty-hint">Lade Top Geschäfte...</div>
+          </div>
+        </div>
+
         <!-- Recent Receipts -->
         <div class="table-card">
           <div class="table-header">
@@ -611,12 +655,33 @@
             </tbody>
           </table>
         </div>
+
+        <div class="backup-row">
+          <div class="management-card">
+            <div class="management-header">
+              <span class="management-title">Backup</span>
+            </div>
+            <div class="backup-actions">
+              <a class="btn-small" id="export-json-link" href="#">JSON Export</a>
+              <a class="btn-small" id="export-csv-link" href="#">CSV Export</a>
+              <a class="btn-small" id="export-db-link" href="#">DB Download</a>
+              <input
+                type="file"
+                id="backup-file"
+                class="file-input hidden"
+                accept=".json"
+              />
+              <button class="btn-small" id="import-backup-btn">Backup importieren</button>
+              <div id="backup-status" class="empty-hint"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
-    <script src="static/js/constants.js" defer></script>
-    <script src="static/js/api.js" defer></script>
-    <script src="static/js/theme.js" defer></script>
-    <script src="static/js/stats.js" defer></script>
+    <script src="static/js/core/constants.js" defer></script>
+    <script src="static/js/core/api.js" defer></script>
+    <script src="static/js/core/theme.js" defer></script>
+    <script src="static/js/features/stats.js" defer></script>
   </body>
 </html>

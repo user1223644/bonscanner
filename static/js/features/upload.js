@@ -2,6 +2,9 @@ let selectedLabels = [];
 let availableLabels = [];
 let pendingFile = null;
 
+const api = window.API;
+const apiBase = api?.baseUrl || window.API_URL || "http://localhost:5000";
+
 const uploadArea = document.getElementById("upload-area");
 const fileInput = document.getElementById("file-input");
 const previewContainer = document.getElementById("preview-container");
@@ -62,8 +65,7 @@ function uploadReceiptWithProgress(url, formData, onProgress) {
 
 async function loadLabels() {
   try {
-    const res = await fetch(`${API_URL}/labels`);
-    availableLabels = await res.json();
+    availableLabels = await api.get("/labels");
   } catch (e) {
     availableLabels = [];
   }
@@ -197,7 +199,7 @@ async function handleFile(file) {
     selectedLabels.forEach((l) => formData.append("labels", l));
 
     const data = await uploadReceiptWithProgress(
-      `${API_URL}/scan`,
+      `${apiBase}/scan`,
       formData,
       setProgress,
     );
@@ -216,6 +218,9 @@ function displayResults(data) {
   const itemsHtml = data.items?.length
     ? `<div class="result-section"><h3>Artikel</h3><ul class="items-list">${data.items.map((i) => `<li><span>${i.name}</span><span class="item-price">${i.price}</span></li>`).join("")}</ul></div>`
     : "";
+  const taxesHtml = data.taxes?.length
+    ? `<div class="result-section"><h3>Steuern</h3><ul class="items-list">${data.taxes.map((t) => `<li><span>${t.tax_rate || ""}%</span><span class="item-price">${t.tax_amount?.toFixed ? t.tax_amount.toFixed(2) : t.tax_amount} €</span></li>`).join("")}</ul></div>`
+    : "";
   results.innerHTML = `
     <div class="success-toast" role="status" aria-live="polite">
       <div class="success-icon" aria-hidden="true">
@@ -232,6 +237,7 @@ function displayResults(data) {
     <div class="result-section"><h3>Datum</h3><p class="result-value">${data.date || "Nicht gefunden"}</p></div>
     <div class="result-section"><h3>Gesamtsumme</h3><p class="result-value">${data.total || "Nicht gefunden"}</p></div>
     ${itemsHtml}
+    ${taxesHtml}
     <div class="result-section"><h3>OCR-Rohtext</h3><pre class="raw-text">${data.raw_text || "Kein Text erkannt"}</pre></div>
   `;
 }

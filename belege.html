@@ -8,132 +8,11 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <script src="static/js/theme-init.js"></script>
+    <link rel="stylesheet" href="static/css/base.css" />
+    <script src="static/js/core/theme-init.js"></script>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      :root {
-        --bg-primary: #f5f5f5;
-        --bg-card: #fff;
-        --bg-hover: #fafafa;
-        --text-primary: #1a1a1a;
-        --text-secondary: #666;
-        --text-muted: #999;
-        --border-color: #eee;
-        --border-light: #f0f0f0;
-        --accent: #f5a623;
-        --accent-bg: #fff8f0;
-      }
-
-      [data-theme="dark"] {
-        --bg-primary: #0d1117;
-        --bg-card: #161b22;
-        --bg-hover: #21262d;
-        --text-primary: #e6edf3;
-        --text-secondary: #8b949e;
-        --text-muted: #6e7681;
-        --border-color: #30363d;
-        --border-light: #21262d;
-        --accent: #f5a623;
-        --accent-bg: rgba(245, 166, 35, 0.15);
-      }
-
-      body {
-        font-family:
-          "Inter",
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        min-height: 100vh;
-        display: flex;
-      }
 
       /* Sidebar */
-      .sidebar {
-        width: 220px;
-        background: var(--bg-card);
-        border-right: 1px solid var(--border-color);
-        padding: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        position: fixed;
-        height: 100vh;
-      }
-
-      .logo {
-        font-weight: 700;
-        font-size: 1.1rem;
-        color: var(--accent);
-        margin-bottom: 0.25rem;
-      }
-      .logo-sub {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-bottom: 2rem;
-      }
-
-      .nav-menu {
-        list-style: none;
-        flex: 1;
-      }
-
-      .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-size: 0.9rem;
-        margin-bottom: 0.25rem;
-        transition: all 0.2s;
-      }
-      .nav-item:hover {
-        background: var(--bg-hover);
-        color: var(--text-primary);
-      }
-      .nav-item.active {
-        background: var(--accent-bg);
-        color: var(--accent);
-        font-weight: 500;
-      }
-      .nav-icon {
-        width: 18px;
-        height: 18px;
-        stroke: currentColor;
-        stroke-width: 2;
-        fill: none;
-      }
-
-      .theme-toggle {
-        background: var(--bg-hover);
-        border: none;
-        padding: 0.75rem;
-        border-radius: 8px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-secondary);
-        margin-top: auto;
-      }
-      .theme-toggle:hover {
-        background: var(--border-color);
-      }
-      .theme-toggle svg {
-        width: 18px;
-        height: 18px;
-        stroke: currentColor;
-        stroke-width: 2;
-        fill: none;
-      }
 
       /* Main Content */
       .main {
@@ -212,6 +91,17 @@
         margin: 0;
         vertical-align: middle;
         outline: none;
+      }
+
+      input[type="number"]::-webkit-outer-spin-button,
+      input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
       }
 
       .category-tag {
@@ -372,6 +262,35 @@
         margin-top: 0.5rem;
       }
 
+      .item-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.15rem;
+      }
+
+      .item-categories {
+        margin-top: 0.25rem;
+      }
+
+      .item-category-btn {
+        background: var(--bg-hover);
+        border: none;
+        color: var(--text-secondary);
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.75rem;
+      }
+      .item-category-btn:hover {
+        background: var(--border-color);
+      }
+
+      .taxes-list {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+      }
+
       /* Filter Section */
       .filter-section {
         background: var(--bg-card);
@@ -417,6 +336,31 @@
         background: var(--border-color);
       }
 
+      .pagination {
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      .page-btn {
+        padding: 0.5rem 0.9rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-card);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
       @media (max-width: 768px) {
         .sidebar {
           display: none;
@@ -433,7 +377,7 @@
       }
     </style>
   </head>
-  <body>
+  <body class="app-shell">
     <aside class="sidebar">
       <div class="logo">~/bonscanner</div>
       <div class="logo-sub">Belegscanner</div>
@@ -456,6 +400,27 @@
               <line x1="8" y1="17" x2="16" y2="17" />
             </svg>
             Belege
+          </a>
+        </li>
+        <li>
+          <a href="kategorien.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M4 4h7v7H4z" />
+              <path d="M13 4h7v7h-7z" />
+              <path d="M4 13h7v7H4z" />
+              <path d="M13 13h7v7h-7z" />
+            </svg>
+            Kategorien
+          </a>
+        </li>
+        <li>
+          <a href="regeln.html" class="nav-item">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+            Regeln
           </a>
         </li>
         <li>
@@ -483,6 +448,12 @@
       <div class="filter-section">
         <input
           type="text"
+          id="text-filter"
+          class="filter-input"
+          placeholder="Textsuche (Geschäft, Artikel...)"
+        />
+        <input
+          type="text"
           id="store-filter"
           class="filter-input"
           placeholder="Nach Geschäft suchen..."
@@ -498,6 +469,26 @@
           id="date-to-filter"
           class="filter-input"
           placeholder="Bis Datum"
+        />
+        <input
+          type="text"
+          id="amount-min-filter"
+          class="filter-input"
+          placeholder="Min. Betrag"
+          data-numeric="true"
+        />
+        <input
+          type="text"
+          id="amount-max-filter"
+          class="filter-input"
+          placeholder="Max. Betrag"
+          data-numeric="true"
+        />
+        <input
+          type="text"
+          id="payment-filter"
+          class="filter-input"
+          placeholder="Zahlungsart"
         />
         <select id="label-filter" class="filter-input">
           <option value="">Alle Kategorien</option>
@@ -515,21 +506,28 @@
               <th>Geschäft</th>
               <th></th>
               <th>Kategorie</th>
+              <th>Zahlungsart</th>
               <th>Betrag</th>
             </tr>
           </thead>
           <tbody id="receipts-body">
             <tr>
-              <td colspan="5" class="empty-state">Lade Belege...</td>
+              <td colspan="6" class="empty-state">Lade Belege...</td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <div class="pagination" id="pagination">
+        <button class="page-btn" id="prev-page" disabled>Zurück</button>
+        <span id="page-info">Seite 1 von 1</span>
+        <button class="page-btn" id="next-page" disabled>Weiter</button>
+      </div>
     </main>
 
-    <script src="static/js/constants.js" defer></script>
-    <script src="static/js/api.js" defer></script>
-    <script src="static/js/theme.js" defer></script>
-    <script src="static/js/receipts.js" defer></script>
+    <script src="static/js/core/constants.js" defer></script>
+    <script src="static/js/core/api.js" defer></script>
+    <script src="static/js/core/theme.js" defer></script>
+    <script src="static/js/features/receipts.js" defer></script>
   </body>
 </html>

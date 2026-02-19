@@ -87,6 +87,7 @@ _RE_RECEIPT_NUMBER_STRICT = re.compile(
     r"(?P<id>[a-z0-9-]{3,})",
     re.IGNORECASE,
 )
+_RE_TAX_RATE = re.compile(r"(\d{1,2}(?:[.,]\d{1,2})?)\s*%")
 
 
 @dataclass(frozen=True)
@@ -909,6 +910,46 @@ def _extract_total_money(
     return best_money
 
 
+def _parse_tax_rate(value: str) -> Optional[float]:
+    if not value:
+        return None
+    raw = value.replace(",", ".")
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _extract_taxes(lines: Sequence[ReceiptLine]) -> list[dict]:
+    taxes: list[dict] = []
+    for ln in lines:
+        tokens = _tokenize(ln.norm)
+        if not _KW_TAX.matches(ln.norm, tokens):
+            continue
+        if not ln.money:
+            continue
+        rate_match = _RE_TAX_RATE.search(ln.raw) or _RE_TAX_RATE.search(ln.norm)
+        tax_rate = _parse_tax_rate(rate_match.group(1)) if rate_match else None
+        if tax_rate is None:
+            continue
+
+        monies = [t.money for t in ln.money]
+        if not monies:
+            continue
+        tax_amount = monies[-1].amount
+        taxable_amount = monies[0].amount if len(monies) >= 2 else None
+
+        taxes.append(
+            {
+                "tax_rate": float(tax_rate),
+                "tax_amount": float(tax_amount),
+                "taxable_amount": float(taxable_amount) if taxable_amount is not None else None,
+                "currency": monies[-1].currency,
+            }
+        )
+    return taxes
+
+
 def _merge_multiline_item_candidates(lines: Sequence[ReceiptLine]) -> list[ReceiptLine]:
     merged: list[ReceiptLine] = []
     i = 0
@@ -1108,6 +1149,7 @@ class ReceiptExtractor:
         payment_method = _extract_payment_method(lines)
         dt = _extract_best_date(lines)
         items = _extract_items(lines, config=self._config)
+        taxes = _extract_taxes(lines)
 
         items_sum = _sum_item_totals(items)
         total_money = _extract_total_money(lines, config=self._config, expected_total=items_sum)
@@ -1125,6 +1167,8 @@ class ReceiptExtractor:
             "items": items,
             "raw_text": text,
         }
+        if taxes:
+            result["taxes"] = taxes
 
         if items_sum is not None:
             result["items_sum"] = float(items_sum)

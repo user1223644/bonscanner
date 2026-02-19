@@ -1,24 +1,7 @@
 (() => {
   let labelColorMap = {};
-
-  function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (ch) => {
-      switch (ch) {
-        case "&":
-          return "&amp;";
-        case "<":
-          return "&lt;";
-        case ">":
-          return "&gt;";
-        case '"':
-          return "&quot;";
-        case "'":
-          return "&#39;";
-        default:
-          return ch;
-      }
-    });
-  }
+  const dom = window.DomUtils;
+  const api = window.API;
 
   function formatDate(dateStr) {
     if (!dateStr || dateStr === "-") return "-";
@@ -78,15 +61,10 @@
         : ["#f5a623", "#4ade80", "#60a5fa", "#f472b6", "#a78bfa"];
 
     try {
-      const res = await fetch(`${API_URL}/stats`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const stats = await res.json();
-      const categoryData = stats?.category_totals || {};
-
-      const sorted = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
+      const categories = await api.get("/categories");
       labelColorMap = {};
-      sorted.forEach(([label], i) => {
-        labelColorMap[label] = palette[i % palette.length];
+      categories.forEach((cat, i) => {
+        labelColorMap[cat.name] = cat.color || palette[i % palette.length];
       });
     } catch (e) {
       labelColorMap = {};
@@ -98,7 +76,7 @@
     const tags = safeLabels
       .map((label) => {
         const color = labelColorMap[label] || "#f5a623";
-        const safeLabel = escapeHtml(label);
+        const safeLabel = dom?.escapeHtml(label) || "";
         const labelParam = String(label)
           .replace(/\\/g, "\\\\")
           .replace(/'/g, "\\'");
@@ -165,12 +143,7 @@
       const payload = { [field]: rawValue || null };
       let ok = true;
       try {
-        const res = await fetch(`${API_URL}/receipts/${receiptId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        ok = res.ok;
+        await api.patch(`/receipts/${receiptId}`, payload);
       } catch (e) {
         ok = false;
         console.error(e);
@@ -223,11 +196,7 @@
 
         const allLabels = [...new Set([...labelsData, ...newLabels])];
 
-        await fetch(`${API_URL}/receipts/${receiptId}/labels`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ labels: allLabels }),
-        });
+        await api.patch(`/receipts/${receiptId}/labels`, { labels: allLabels });
       }
       refreshRecentReceipts();
     };
@@ -249,11 +218,7 @@
 
     const newLabels = labelsData.filter((l) => l !== label);
 
-    await fetch(`${API_URL}/receipts/${receiptId}/labels`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ labels: newLabels }),
-    });
+    await api.patch(`/receipts/${receiptId}/labels`, { labels: newLabels });
 
     refreshRecentReceipts();
   }
@@ -273,10 +238,7 @@
     try {
       await loadLabelColorMap();
 
-      const res = await fetch(`${API_URL}/receipts`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const receipts = await res.json();
+      const receipts = await api.get("/receipts");
       const recent = Array.isArray(receipts) ? receipts.slice(0, 10) : [];
 
       if (recent.length === 0) {
@@ -288,14 +250,14 @@
       tbody.innerHTML = recent
         .map((r) => {
           const receiptId = r?.id;
-          const labelsJson = escapeHtml(JSON.stringify(r?.labels || []));
+          const labelsJson = dom?.escapeHtml(JSON.stringify(r?.labels || [])) || "";
 
-          const dateText = escapeHtml(formatDate(r?.date));
-          const storeText = escapeHtml(r?.store_name || "-");
+          const dateText = dom?.escapeHtml(formatDate(r?.date)) || "";
+          const storeText = dom?.escapeHtml(r?.store_name || "-") || "";
           const categoriesHtml = renderCategories(receiptId, r?.labels);
 
           const amountValue = formatAmount(r?.total);
-          const amount = escapeHtml(amountValue);
+          const amount = dom?.escapeHtml(amountValue) || "";
 
           return `
             <tr data-id="${receiptId}" data-labels="${labelsJson}">

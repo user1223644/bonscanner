@@ -1,6 +1,9 @@
 let spendingChart = null;
 let categoryChart = null;
 let labelColorMap = {};
+let categoriesCache = [];
+const api = window.API;
+const apiBase = api?.baseUrl || window.API_URL || "http://localhost:5000";
 
 const MAX_SCROLL_RESTORE_DELTA_X = 60;
 const MAX_SCROLL_RESTORE_DELTA_Y = 120;
@@ -16,6 +19,25 @@ function restoreScrollNear(targetX, targetY) {
 function restoreScrollLater(scrollX, scrollY) {
   restoreScrollNear(scrollX, scrollY);
   requestAnimationFrame(() => restoreScrollNear(scrollX, scrollY));
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return ch;
+    }
+  });
 }
 
 function formatDate(dateStr) {
@@ -55,10 +77,38 @@ function formatDate(dateStr) {
   return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`;
 }
 
-async function loadStats() {
+function getPalette() {
+  return typeof CATEGORY_COLORS !== "undefined" && CATEGORY_COLORS.length
+    ? CATEGORY_COLORS
+    : ["#f5a623", "#4ade80", "#60a5fa", "#f472b6", "#a78bfa"];
+}
+
+function buildLabelColorMap(categories) {
+  const palette = getPalette();
+  labelColorMap = {};
+  (categories || []).forEach((cat, index) => {
+    const color = cat.color || palette[index % palette.length];
+    labelColorMap[cat.name] = color;
+  });
+}
+
+async function loadCategories() {
   try {
-    const res = await fetch(`${API_URL}/stats`);
-    const data = await res.json();
+    categoriesCache = await api.get("/categories");
+  } catch (e) {
+    categoriesCache = [];
+  }
+  buildLabelColorMap(categoriesCache);
+}
+
+async function loadStats() {
+  if (!api) {
+    document.getElementById("stats-row").innerHTML =
+      '<div class="empty-state">Fehler beim Laden</div>';
+    return;
+  }
+  try {
+    const data = await api.get("/stats");
 
     document.getElementById("stats-row").innerHTML = `
       <div class="stat-card">
@@ -86,6 +136,9 @@ async function loadStats() {
 
     renderSpendingChart(data.monthly_totals || {});
     renderCategoryChart(data.category_totals || {});
+    renderTrend(data.trend);
+    renderAlerts(data.alerts || []);
+    renderTopStores(data.top_stores || []);
   } catch (e) {
     document.getElementById("stats-row").innerHTML =
       '<div class="empty-state">Fehler beim Laden</div>';
@@ -93,10 +146,13 @@ async function loadStats() {
 }
 
 function renderSpendingChart(monthlyData) {
+  if (typeof Chart === "undefined") return;
   const labels = Object.keys(monthlyData);
   const values = Object.values(monthlyData);
 
-  const ctx = document.getElementById("spending-chart").getContext("2d");
+  const canvas = document.getElementById("spending-chart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
 
   if (spendingChart) spendingChart.destroy();
 
@@ -158,12 +214,19 @@ function renderSpendingChart(monthlyData) {
 }
 
 function renderCategoryChart(categoryData) {
+  if (typeof Chart === "undefined") return;
   const sortedEntries = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
   const labels = sortedEntries.map(([label]) => label);
   const values = sortedEntries.map(([, value]) => value);
   const total = values.reduce((a, b) => a + b, 0);
+  const palette = getPalette();
+  const colors = labels.map(
+    (label, idx) => labelColorMap[label] || palette[idx % palette.length],
+  );
 
-  const ctx = document.getElementById("category-chart").getContext("2d");
+  const canvas = document.getElementById("category-chart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
 
   if (categoryChart) categoryChart.destroy();
 
@@ -178,7 +241,7 @@ function renderCategoryChart(categoryData) {
       datasets: [
         {
           data: values,
-          backgroundColor: CATEGORY_COLORS.slice(0, labels.length),
+          backgroundColor: colors,
           borderWidth: 0,
         },
       ],
@@ -212,23 +275,78 @@ function renderCategoryChart(categoryData) {
       const pct = total > 0 ? Math.round((values[i] / total) * 100) : 0;
       return `
         <div class="legend-item">
-          <span class="legend-label"><span class="legend-color" style="background: ${CATEGORY_COLORS[i]}"></span>${label}</span>
+          <span class="legend-label"><span class="legend-color" style="background: ${colors[i]}"></span>${label}</span>
           <span class="legend-value">${pct}%</span>
         </div>
       `;
     })
     .join("");
 
-  labelColorMap = {};
   labels.forEach((label, i) => {
-    labelColorMap[label] = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
+    if (!labelColorMap[label]) {
+      labelColorMap[label] = colors[i];
+    }
   });
+}
+
+function renderTrend(trend) {
+  const el = document.getElementById("trend-summary");
+  if (!el) return;
+  if (!trend || !trend.current_month) {
+    el.textContent = "Nicht genug Daten für Trend.";
+    return;
+  }
+  const pct =
+    trend.percent_change === null || trend.percent_change === undefined
+      ? "–"
+      : `${trend.percent_change.toFixed(2)}%`;
+  const change =
+    trend.change === null || trend.change === undefined
+      ? "–"
+      : `${trend.change.toFixed(2)} €`;
+  el.textContent = `Aktueller Monat ${trend.current_month}: ${trend.current_total?.toFixed(2) || 0} € (Δ ${change}, ${pct})`;
+}
+
+function renderAlerts(alerts) {
+  const el = document.getElementById("alerts-list");
+  if (!el) return;
+  if (!alerts || alerts.length === 0) {
+    el.innerHTML = '<div class="empty-hint">Keine Alerts</div>';
+    return;
+  }
+  el.innerHTML = alerts
+    .map(
+      (alert) => `
+        <div class="insight-item">
+          <span><span class="alert-badge">Alert</span> ${escapeHtml(alert.message || "")}</span>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderTopStores(stores) {
+  const el = document.getElementById("top-stores");
+  if (!el) return;
+  if (!stores || stores.length === 0) {
+    el.innerHTML = '<div class="empty-hint">Keine Daten</div>';
+    return;
+  }
+  el.innerHTML = stores
+    .map(
+      (store) => `
+        <div class="insight-item">
+          <span>${escapeHtml(store.store_name || "-")}</span>
+          <span>${(store.total ?? 0).toFixed(2)} €</span>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 async function loadReceipts() {
   try {
-    const res = await fetch(`${API_URL}/receipts`);
-    const receipts = await res.json();
+    const receipts = await api.get("/receipts");
     const tbody = document.getElementById("receipts-body");
 
     if (receipts.length === 0) {
@@ -298,11 +416,7 @@ async function editCategory(id, el, existingLabels = []) {
       const allLabels = [...new Set([...existingLabels, ...newLabels])];
 
       try {
-        await fetch(`${API_URL}/receipts/${id}/labels`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ labels: allLabels }),
-        });
+        await api.patch(`/receipts/${id}/labels`, { labels: allLabels });
       } catch (err) {
         console.error(err);
       }
@@ -383,11 +497,7 @@ function editField(id, field, el) {
     const scrollY = window.scrollY;
     const payload = { [field]: input.value.trim() || null };
     try {
-      await fetch(`${API_URL}/receipts/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      await api.patch(`/receipts/${id}`, payload);
     } catch (e) {
       console.error(e);
     }
@@ -414,20 +524,66 @@ async function deleteLabelStats(id, label, event) {
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
 
-  const receipts = await (await fetch(`${API_URL}/receipts`)).json();
+  const receipts = await api.get("/receipts");
   const receipt = receipts.find((r) => r.id === id);
   if (!receipt) return;
 
   const newLabels = (receipt.labels || []).filter((l) => l !== label);
 
-  await fetch(`${API_URL}/receipts/${id}/labels`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ labels: newLabels }),
-  });
+  await api.patch(`/receipts/${id}/labels`, { labels: newLabels });
 
   await Promise.all([loadReceipts(), loadStats()]);
   restoreScrollLater(scrollX, scrollY);
 }
 
-loadStats().then(() => loadReceipts());
+function setupBackupHandlers() {
+  const exportJsonLink = document.getElementById("export-json-link");
+  if (exportJsonLink) exportJsonLink.href = `${apiBase}/export/json`;
+  const exportCsvLink = document.getElementById("export-csv-link");
+  if (exportCsvLink) exportCsvLink.href = `${apiBase}/export/csv`;
+  const exportDbLink = document.getElementById("export-db-link");
+  if (exportDbLink) exportDbLink.href = `${apiBase}/export/db`;
+
+  const importBtn = document.getElementById("import-backup-btn");
+  const fileInput = document.getElementById("backup-file");
+  const status = document.getElementById("backup-status");
+
+  const runImport = async (file) => {
+    if (!file) return;
+    if (status) status.textContent = "Import läuft...";
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const data = await api.postForm("/import/json", formData);
+      if (status) {
+        status.textContent = `Importiert: ${JSON.stringify(data.imported)}`;
+      }
+      await Promise.all([loadCategories(), loadReceipts(), loadStats()]);
+    } catch (e) {
+      if (status) status.textContent = "Import fehlgeschlagen.";
+    }
+  };
+
+  if (fileInput) {
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files?.[0];
+      await runImport(file);
+      fileInput.value = "";
+    });
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener("click", () => {
+      if (status) status.textContent = "";
+      fileInput?.click();
+    });
+  }
+}
+
+async function initializeDashboard() {
+  setupBackupHandlers();
+  await loadCategories();
+  await Promise.all([loadStats(), loadReceipts()]);
+}
+
+initializeDashboard();
