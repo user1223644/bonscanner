@@ -3,7 +3,7 @@ let availableLabels = [];
 let pendingFile = null;
 
 const api = window.API;
-const apiBase = api?.baseUrl || API_URL;
+const apiBase = api?.baseUrl || window.API_URL || "http://localhost:5000";
 
 const uploadArea = document.getElementById("upload-area");
 const fileInput = document.getElementById("file-input");
