@@ -1,11 +1,11 @@
 const DEFAULT_API_URL = "http://localhost:5000";
+const locationOrigin =
+  window.location && window.location.origin && window.location.origin !== "null"
+    ? window.location.origin
+    : "";
 const API_URL =
   window.API_BASE_URL ||
-  (window.location &&
-  window.location.origin &&
-  window.location.origin !== "null"
-    ? window.location.origin
-    : DEFAULT_API_URL);
+  (locationOrigin.includes(":5000") ? locationOrigin : DEFAULT_API_URL);
 
 function normalizeEndpoint(path) {
   if (!path) return API_URL;
