@@ -1,10 +1,73 @@
 const API_URL = "http://localhost:5000";
 
-async function fetchJSON(url, options) {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const message = await res.text();
-    throw new Error(message || `Request failed: ${res.status}`);
+function normalizeEndpoint(path) {
+  if (!path) return API_URL;
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
   }
-  return res.json();
+  if (path.startsWith("/")) {
+    return `${API_URL}${path}`;
+  }
+  return `${API_URL}/${path}`;
 }
+
+async function parseResponse(res) {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      return await res.json();
+    } catch (error) {
+      return null;
+    }
+  }
+  try {
+    return await res.text();
+  } catch (error) {
+    return null;
+  }
+}
+
+async function requestJSON(path, options = {}) {
+  const res = await fetch(normalizeEndpoint(path), options);
+  const data = await parseResponse(res);
+  if (!res.ok) {
+    const message =
+      (data && data.error) ||
+      (data && data.message) ||
+      (typeof data === "string" ? data : null) ||
+      `Request failed: ${res.status}`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+async function fetchJSON(url, options) {
+  return requestJSON(url, options);
+}
+
+const API = {
+  baseUrl: API_URL,
+  requestJSON,
+  get(path) {
+    return requestJSON(path);
+  },
+  post(path, payload) {
+    return requestJSON(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+  },
+  patch(path, payload) {
+    return requestJSON(path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+  },
+  delete(path) {
+    return requestJSON(path, { method: "DELETE" });
+  },
+};
+
+window.API = API;

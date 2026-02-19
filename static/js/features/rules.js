@@ -3,30 +3,12 @@ let rulesCache = [];
 let modalController = null;
 
 const ui = window.BonscannerUI;
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
-    switch (ch) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return ch;
-    }
-  });
-}
+const api = window.API;
+const dom = window.DomUtils;
 
 async function loadCategories() {
   try {
-    const res = await fetch(`${API_URL}/categories`);
-    categoriesCache = await res.json();
+    categoriesCache = await api.get("/categories");
   } catch (e) {
     categoriesCache = [];
   }
@@ -37,14 +19,13 @@ function renderRuleCategoryOptions(categories) {
   const select = document.getElementById("rule-category");
   if (!select) return;
   select.innerHTML = (categories || [])
-    .map((cat) => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`)
+    .map((cat) => `<option value="${cat.id}">${dom?.escapeHtml(cat.name) || ""}</option>`)
     .join("");
 }
 
 async function loadRules() {
   try {
-    const res = await fetch(`${API_URL}/category-rules`);
-    const rules = await res.json();
+    const rules = await api.get("/category-rules");
     rulesCache = rules || [];
     renderRules(rulesCache);
   } catch (e) {
@@ -88,7 +69,7 @@ function buildCategorySelect(selectedId) {
   return (categoriesCache || [])
     .map((cat) => {
       const selected = String(cat.id) === String(selectedId) ? "selected" : "";
-      return `<option value="${cat.id}" ${selected}>${escapeHtml(cat.name)}</option>`;
+      return `<option value="${cat.id}" ${selected}>${dom?.escapeHtml(cat.name) || ""}</option>`;
     })
     .join("");
 }
@@ -130,7 +111,7 @@ function renderRules(rules) {
           <select class="rule-select rule-category">${buildCategorySelect(rule.category_id)}</select>
           <select class="rule-select rule-type">${buildRuleTypeOptions(rule.rule_type)}</select>
           <select class="rule-select rule-match">${buildMatchOptions(rule.match_type)}</select>
-          <input type="text" class="rule-input rule-pattern" value="${escapeHtml(rule.pattern)}" />
+          <input type="text" class="rule-input rule-pattern" value="${dom?.escapeHtml(rule.pattern) || ""}" />
           <input
             type="text"
             inputmode="numeric"
@@ -179,15 +160,7 @@ function renderRules(rules) {
       ensureUI()?.setButtonLoading(btn);
 
       try {
-        const res = await fetch(`${API_URL}/category-rules/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || "Speichern fehlgeschlagen.");
-        }
+        await api.patch(`/category-rules/${id}`, payload);
         updateRuleCache(id, payload);
         ensureUI()?.showButtonSuccess(btn);
         ensureUI()?.flashRow(row);
@@ -225,11 +198,7 @@ function renderRules(rules) {
       const transitionDone = uiHelpers?.animateRowRemoval(row);
 
       try {
-        const res = await fetch(`${API_URL}/category-rules/${id}`, { method: "DELETE" });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || "Löschen fehlgeschlagen.");
-        }
+        await api.delete(`/category-rules/${id}`);
         rulesCache = rulesCache.filter((item) => String(item.id) !== String(id));
         await transitionDone;
         row.remove();
@@ -239,17 +208,13 @@ function renderRules(rules) {
         uiHelpers?.showToast("Regel gelöscht", {
           actionLabel: "Rückgängig",
           onAction: async () => {
-            await fetch(`${API_URL}/category-rules`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                category_id: rule.category_id,
-                rule_type: rule.rule_type,
-                match_type: rule.match_type,
-                pattern: rule.pattern,
-                priority: rule.priority,
-                is_active: rule.is_active,
-              }),
+            await api.post("/category-rules", {
+              category_id: rule.category_id,
+              rule_type: rule.rule_type,
+              match_type: rule.match_type,
+              pattern: rule.pattern,
+              priority: rule.priority,
+              is_active: rule.is_active,
             });
             await loadRules();
           },
@@ -293,17 +258,13 @@ function setupHandlers() {
     const priorityRaw = document.getElementById("rule-priority")?.value;
     const active = document.getElementById("rule-active")?.checked ?? true;
     if (!categoryId || !ruleType || !pattern) return;
-    await fetch(`${API_URL}/category-rules`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        category_id: categoryId,
-        rule_type: ruleType,
-        match_type: matchType,
-        pattern,
-        priority: Number(priorityRaw || 100),
-        is_active: active,
-      }),
+    await api.post("/category-rules", {
+      category_id: categoryId,
+      rule_type: ruleType,
+      match_type: matchType,
+      pattern,
+      priority: Number(priorityRaw || 100),
+      is_active: active,
     });
     modalController?.close();
     await loadRules();

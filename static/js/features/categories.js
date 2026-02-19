@@ -2,25 +2,8 @@ let categoriesCache = [];
 let modalController = null;
 
 const ui = window.BonscannerUI;
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
-    switch (ch) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      case "'":
-        return "&#39;";
-      default:
-        return ch;
-    }
-  });
-}
+const api = window.API;
+const dom = window.DomUtils;
 
 function getPalette() {
   return typeof CATEGORY_COLORS !== "undefined" && CATEGORY_COLORS.length
@@ -44,8 +27,7 @@ function ensureUI() {
 
 async function loadCategories() {
   try {
-    const res = await fetch(`${API_URL}/categories`);
-    categoriesCache = await res.json();
+    categoriesCache = await api.get("/categories");
   } catch (e) {
     categoriesCache = [];
   }
@@ -76,7 +58,7 @@ function renderCategories(categories) {
       return `
         <div class="category-row" data-id="${cat.id}">
           <input type="color" class="category-color-input" value="${color}" />
-          <input type="text" class="category-name-input" value="${escapeHtml(cat.name)}" />
+          <input type="text" class="category-name-input" value="${dom?.escapeHtml(cat.name) || ""}" />
           <span class="category-usage">${cat.usage_count || 0}</span>
           <div class="category-actions">
             <button
@@ -115,15 +97,7 @@ function renderCategories(categories) {
       ensureUI()?.setButtonLoading(btn);
 
       try {
-        const res = await fetch(`${API_URL}/categories/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, color }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || "Speichern fehlgeschlagen.");
-        }
+        await api.patch(`/categories/${id}`, { name, color });
         updateCategoryCache(id, { name, color });
         ensureUI()?.showButtonSuccess(btn);
         ensureUI()?.flashRow(row);
@@ -157,11 +131,7 @@ function renderCategories(categories) {
       const transitionDone = uiHelpers?.animateRowRemoval(row);
 
       try {
-        const res = await fetch(`${API_URL}/categories/${id}`, { method: "DELETE" });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data.error || "Löschen fehlgeschlagen.");
-        }
+        await api.delete(`/categories/${id}`);
         categoriesCache = categoriesCache.filter((cat) => String(cat.id) !== String(id));
         await transitionDone;
         row.remove();
@@ -171,10 +141,9 @@ function renderCategories(categories) {
         uiHelpers?.showToast("Kategorie gelöscht", {
           actionLabel: "Rückgängig",
           onAction: async () => {
-            await fetch(`${API_URL}/categories`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: category.name, color: category.color }),
+            await api.post("/categories", {
+              name: category.name,
+              color: category.color,
             });
             await loadCategories();
           },
@@ -215,11 +184,7 @@ function setupHandlers() {
     const name = nameInput?.value.trim();
     const color = colorInput?.value;
     if (!name) return;
-    await fetch(`${API_URL}/categories`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, color }),
-    });
+    await api.post("/categories", { name, color });
     modalController?.close();
     await loadCategories();
   };
