@@ -3,16 +3,11 @@ Receipt Scanner API
 Flask backend for OCR-based receipt processing.
 """
 
-import os
-import re
 import csv
 import io
 import json
-import tempfile
 from flask import Flask, request, jsonify, make_response, send_file, after_this_request
 from flask_cors import CORS
-import pytesseract
-from PIL import Image
 
 from database import (
     init_db, save_receipt, get_all_receipts, get_receipt_stats,
@@ -25,86 +20,13 @@ from database import (
     set_receipt_item_categories
 )
 from extractor import extract_receipt_data
+from server.services.categorization import apply_auto_categorization
+from server.services.ocr import ocr_image_file
+from server.utils.labels import parse_labels_from_request
 
 app = Flask(__name__)
 CORS(app)
 
-# Auto-categorization rules: store name patterns -> category labels
-CATEGORIZATION_RULES = {
-    'Lebensmittel': ['rewe', 'lidl', 'aldi', 'edeka', 'netto', 'penny', 'kaufland'],
-    'Transport': ['shell', 'aral', 'esso', 'total', 'jet'],
-    'Gesundheit': ['apotheke', 'dm', 'rossmann'],
-    'Haushalt': ['bauhaus', 'obi', 'hornbach', 'ikea'],
-    'Elektronik': ['media markt', 'saturn', 'conrad'],
-}
-
-def apply_auto_categorization(store_name, existing_labels, raw_text=None, payment_method=None, items=None):
-    """Apply auto-categorization rules based on configured rules."""
-    labels = list(existing_labels) if existing_labels else []
-    rules = get_category_rules()
-
-    if not rules:
-        return labels
-
-    store_value = (store_name or "").lower()
-    text_value = (raw_text or "").lower()
-    payment_value = (payment_method or "").lower()
-    item_names = [str(it.get("name", "")).lower() for it in (items or []) if it.get("name")]
-
-    for rule in rules:
-        if not rule.get("is_active"):
-            continue
-        category_name = rule.get("category_name")
-        if not category_name or category_name in labels:
-            continue
-
-        rule_type = (rule.get("rule_type") or "").lower()
-        pattern = str(rule.get("pattern") or "").lower()
-        match_type = (rule.get("match_type") or "contains").lower()
-
-        def match_value(value):
-            if not value:
-                return False
-            if match_type == "equals":
-                return value == pattern
-            if match_type == "regex":
-                try:
-                    return re.search(pattern, value, re.IGNORECASE) is not None
-                except re.error:
-                    return False
-            return pattern in value
-
-        matched = False
-        if rule_type == "store":
-            matched = match_value(store_value)
-        elif rule_type == "keyword":
-            matched = match_value(text_value)
-        elif rule_type == "payment":
-            matched = match_value(payment_value)
-        elif rule_type == "item":
-            matched = any(match_value(name) for name in item_names)
-
-        if matched:
-            labels.append(category_name)
-
-    return labels
-
-def parse_labels_from_request(req):
-    """Extract labels from form data (list or comma-separated)."""
-    labels = req.form.getlist('labels')
-    if not labels and req.form.get('labels'):
-        labels = [l.strip() for l in req.form.get('labels').split(',') if l.strip()]
-    return labels
-
-
-def ocr_image_file(file_obj):
-    """Run OCR on an uploaded image file and return extracted text."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-        file_obj.save(tmp.name)
-        image = Image.open(tmp.name)
-        text = pytesseract.image_to_string(image, lang='deu+eng')
-        os.unlink(tmp.name)
-    return text
 
 
 @app.route('/upload', methods=['POST'])
