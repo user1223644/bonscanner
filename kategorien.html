@@ -139,29 +139,22 @@
         flex: 1;
         margin-left: 220px;
         min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .topbar {
-        background: var(--bg-card);
-        padding: 1rem 2rem;
-        border-bottom: 1px solid var(--border-color);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .topbar h1 {
-        font-size: 1.25rem;
-        font-weight: 600;
-      }
-
-      .content {
         padding: 2rem;
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
       }
 
       .management-card {
@@ -464,10 +457,7 @@
     </aside>
 
     <main class="main">
-      <div class="topbar">
-        <h1>Kategorien</h1>
-      </div>
-
+      <h1>Kategorien</h1>
       <div class="content">
         <div class="management-card">
           <div class="management-header">
