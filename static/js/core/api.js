@@ -58,6 +58,12 @@ const API = {
       body: JSON.stringify(payload || {}),
     });
   },
+  postForm(path, formData) {
+    return requestJSON(path, {
+      method: "POST",
+      body: formData,
+    });
+  },
   patch(path, payload) {
     return requestJSON(path, {
       method: "PATCH",

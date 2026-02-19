@@ -2,6 +2,9 @@ let selectedLabels = [];
 let availableLabels = [];
 let pendingFile = null;
 
+const api = window.API;
+const apiBase = api?.baseUrl || API_URL;
+
 const uploadArea = document.getElementById("upload-area");
 const fileInput = document.getElementById("file-input");
 const previewContainer = document.getElementById("preview-container");
@@ -62,8 +65,7 @@ function uploadReceiptWithProgress(url, formData, onProgress) {
 
 async function loadLabels() {
   try {
-    const res = await fetch(`${API_URL}/labels`);
-    availableLabels = await res.json();
+    availableLabels = await api.get("/labels");
   } catch (e) {
     availableLabels = [];
   }
@@ -197,7 +199,7 @@ async function handleFile(file) {
     selectedLabels.forEach((l) => formData.append("labels", l));
 
     const data = await uploadReceiptWithProgress(
-      `${API_URL}/scan`,
+      `${apiBase}/scan`,
       formData,
       setProgress,
     );

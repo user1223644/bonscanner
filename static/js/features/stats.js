@@ -2,6 +2,8 @@ let spendingChart = null;
 let categoryChart = null;
 let labelColorMap = {};
 let categoriesCache = [];
+const api = window.API;
+const apiBase = api?.baseUrl || API_URL;
 
 const MAX_SCROLL_RESTORE_DELTA_X = 60;
 const MAX_SCROLL_RESTORE_DELTA_Y = 120;
@@ -92,8 +94,7 @@ function buildLabelColorMap(categories) {
 
 async function loadCategories() {
   try {
-    const res = await fetch(`${API_URL}/categories`);
-    categoriesCache = await res.json();
+    categoriesCache = await api.get("/categories");
   } catch (e) {
     categoriesCache = [];
   }
@@ -102,8 +103,7 @@ async function loadCategories() {
 
 async function loadStats() {
   try {
-    const res = await fetch(`${API_URL}/stats`);
-    const data = await res.json();
+    const data = await api.get("/stats");
 
     document.getElementById("stats-row").innerHTML = `
       <div class="stat-card">
@@ -335,8 +335,7 @@ function renderTopStores(stores) {
 
 async function loadReceipts() {
   try {
-    const res = await fetch(`${API_URL}/receipts`);
-    const receipts = await res.json();
+    const receipts = await api.get("/receipts");
     const tbody = document.getElementById("receipts-body");
 
     if (receipts.length === 0) {
@@ -406,11 +405,7 @@ async function editCategory(id, el, existingLabels = []) {
       const allLabels = [...new Set([...existingLabels, ...newLabels])];
 
       try {
-        await fetch(`${API_URL}/receipts/${id}/labels`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ labels: allLabels }),
-        });
+        await api.patch(`/receipts/${id}/labels`, { labels: allLabels });
       } catch (err) {
         console.error(err);
       }
@@ -491,11 +486,7 @@ function editField(id, field, el) {
     const scrollY = window.scrollY;
     const payload = { [field]: input.value.trim() || null };
     try {
-      await fetch(`${API_URL}/receipts/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      await api.patch(`/receipts/${id}`, payload);
     } catch (e) {
       console.error(e);
     }
@@ -522,17 +513,13 @@ async function deleteLabelStats(id, label, event) {
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
 
-  const receipts = await (await fetch(`${API_URL}/receipts`)).json();
+  const receipts = await api.get("/receipts");
   const receipt = receipts.find((r) => r.id === id);
   if (!receipt) return;
 
   const newLabels = (receipt.labels || []).filter((l) => l !== label);
 
-  await fetch(`${API_URL}/receipts/${id}/labels`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ labels: newLabels }),
-  });
+  await api.patch(`/receipts/${id}/labels`, { labels: newLabels });
 
   await Promise.all([loadReceipts(), loadStats()]);
   restoreScrollLater(scrollX, scrollY);
@@ -540,11 +527,11 @@ async function deleteLabelStats(id, label, event) {
 
 function setupBackupHandlers() {
   const exportJsonLink = document.getElementById("export-json-link");
-  if (exportJsonLink) exportJsonLink.href = `${API_URL}/export/json`;
+  if (exportJsonLink) exportJsonLink.href = `${apiBase}/export/json`;
   const exportCsvLink = document.getElementById("export-csv-link");
-  if (exportCsvLink) exportCsvLink.href = `${API_URL}/export/csv`;
+  if (exportCsvLink) exportCsvLink.href = `${apiBase}/export/csv`;
   const exportDbLink = document.getElementById("export-db-link");
-  if (exportDbLink) exportDbLink.href = `${API_URL}/export/db`;
+  if (exportDbLink) exportDbLink.href = `${apiBase}/export/db`;
 
   const importBtn = document.getElementById("import-backup-btn");
   const fileInput = document.getElementById("backup-file");
@@ -556,15 +543,7 @@ function setupBackupHandlers() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch(`${API_URL}/import/json`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (status) status.textContent = data.error || "Import fehlgeschlagen.";
-        return;
-      }
+      const data = await api.postForm("/import/json", formData);
       if (status) {
         status.textContent = `Importiert: ${JSON.stringify(data.imported)}`;
       }

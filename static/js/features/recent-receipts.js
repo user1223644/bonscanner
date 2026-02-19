@@ -1,24 +1,7 @@
 (() => {
   let labelColorMap = {};
-
-  function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (ch) => {
-      switch (ch) {
-        case "&":
-          return "&amp;";
-        case "<":
-          return "&lt;";
-        case ">":
-          return "&gt;";
-        case '"':
-          return "&quot;";
-        case "'":
-          return "&#39;";
-        default:
-          return ch;
-      }
-    });
-  }
+  const dom = window.DomUtils;
+  const api = window.API;
 
   function formatDate(dateStr) {
     if (!dateStr || dateStr === "-") return "-";
@@ -78,9 +61,7 @@
         : ["#f5a623", "#4ade80", "#60a5fa", "#f472b6", "#a78bfa"];
 
     try {
-      const res = await fetch(`${API_URL}/categories`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const categories = await res.json();
+      const categories = await api.get("/categories");
       labelColorMap = {};
       categories.forEach((cat, i) => {
         labelColorMap[cat.name] = cat.color || palette[i % palette.length];
@@ -95,7 +76,7 @@
     const tags = safeLabels
       .map((label) => {
         const color = labelColorMap[label] || "#f5a623";
-        const safeLabel = escapeHtml(label);
+        const safeLabel = dom?.escapeHtml(label) || "";
         const labelParam = String(label)
           .replace(/\\/g, "\\\\")
           .replace(/'/g, "\\'");
