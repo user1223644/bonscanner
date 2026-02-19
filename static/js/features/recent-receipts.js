@@ -143,12 +143,7 @@
       const payload = { [field]: rawValue || null };
       let ok = true;
       try {
-        const res = await fetch(`${API_URL}/receipts/${receiptId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        ok = res.ok;
+        await api.patch(`/receipts/${receiptId}`, payload);
       } catch (e) {
         ok = false;
         console.error(e);
@@ -201,11 +196,7 @@
 
         const allLabels = [...new Set([...labelsData, ...newLabels])];
 
-        await fetch(`${API_URL}/receipts/${receiptId}/labels`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ labels: allLabels }),
-        });
+        await api.patch(`/receipts/${receiptId}/labels`, { labels: allLabels });
       }
       refreshRecentReceipts();
     };
@@ -227,11 +218,7 @@
 
     const newLabels = labelsData.filter((l) => l !== label);
 
-    await fetch(`${API_URL}/receipts/${receiptId}/labels`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ labels: newLabels }),
-    });
+    await api.patch(`/receipts/${receiptId}/labels`, { labels: newLabels });
 
     refreshRecentReceipts();
   }
@@ -251,10 +238,7 @@
     try {
       await loadLabelColorMap();
 
-      const res = await fetch(`${API_URL}/receipts`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const receipts = await res.json();
+      const receipts = await api.get("/receipts");
       const recent = Array.isArray(receipts) ? receipts.slice(0, 10) : [];
 
       if (recent.length === 0) {
@@ -266,14 +250,14 @@
       tbody.innerHTML = recent
         .map((r) => {
           const receiptId = r?.id;
-          const labelsJson = escapeHtml(JSON.stringify(r?.labels || []));
+          const labelsJson = dom?.escapeHtml(JSON.stringify(r?.labels || [])) || "";
 
-          const dateText = escapeHtml(formatDate(r?.date));
-          const storeText = escapeHtml(r?.store_name || "-");
+          const dateText = dom?.escapeHtml(formatDate(r?.date)) || "";
+          const storeText = dom?.escapeHtml(r?.store_name || "-") || "";
           const categoriesHtml = renderCategories(receiptId, r?.labels);
 
           const amountValue = formatAmount(r?.total);
-          const amount = escapeHtml(amountValue);
+          const amount = dom?.escapeHtml(amountValue) || "";
 
           return `
             <tr data-id="${receiptId}" data-labels="${labelsJson}">
