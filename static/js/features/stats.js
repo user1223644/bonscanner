@@ -3,7 +3,7 @@ let categoryChart = null;
 let labelColorMap = {};
 let categoriesCache = [];
 const api = window.API;
-const apiBase = api?.baseUrl || API_URL;
+const apiBase = api?.baseUrl || window.API_URL || "http://localhost:5000";
 
 const MAX_SCROLL_RESTORE_DELTA_X = 60;
 const MAX_SCROLL_RESTORE_DELTA_Y = 120;
@@ -102,6 +102,11 @@ async function loadCategories() {
 }
 
 async function loadStats() {
+  if (!api) {
+    document.getElementById("stats-row").innerHTML =
+      '<div class="empty-state">Fehler beim Laden</div>';
+    return;
+  }
   try {
     const data = await api.get("/stats");
 
@@ -141,10 +146,13 @@ async function loadStats() {
 }
 
 function renderSpendingChart(monthlyData) {
+  if (typeof Chart === "undefined") return;
   const labels = Object.keys(monthlyData);
   const values = Object.values(monthlyData);
 
-  const ctx = document.getElementById("spending-chart").getContext("2d");
+  const canvas = document.getElementById("spending-chart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
 
   if (spendingChart) spendingChart.destroy();
 
@@ -206,6 +214,7 @@ function renderSpendingChart(monthlyData) {
 }
 
 function renderCategoryChart(categoryData) {
+  if (typeof Chart === "undefined") return;
   const sortedEntries = Object.entries(categoryData).sort((a, b) => b[1] - a[1]);
   const labels = sortedEntries.map(([label]) => label);
   const values = sortedEntries.map(([, value]) => value);
@@ -215,7 +224,9 @@ function renderCategoryChart(categoryData) {
     (label, idx) => labelColorMap[label] || palette[idx % palette.length],
   );
 
-  const ctx = document.getElementById("category-chart").getContext("2d");
+  const canvas = document.getElementById("category-chart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
 
   if (categoryChart) categoryChart.destroy();
 
