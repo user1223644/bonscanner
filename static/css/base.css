@@ -7,7 +7,6 @@
 :root {
   --bg-primary: #f5f5f5;
   --bg-card: #fff;
-  --bg-secondary: #f9fafb;
   --bg-hover: #fafafa;
   --text-primary: #1a1a1a;
   --text-secondary: #666;
@@ -15,14 +14,12 @@
   --border-color: #eee;
   --border-light: #f0f0f0;
   --accent: #f5a623;
-  --accent-hover: #e09515;
   --accent-bg: #fff8f0;
 }
 
 [data-theme="dark"] {
   --bg-primary: #0d1117;
   --bg-card: #161b22;
-  --bg-secondary: #0f141b;
   --bg-hover: #21262d;
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
@@ -30,7 +27,6 @@
   --border-color: #30363d;
   --border-light: #21262d;
   --accent: #f5a623;
-  --accent-hover: #e09515;
   --accent-bg: rgba(245, 166, 35, 0.15);
 }
 
@@ -39,15 +35,10 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
-  margin: 0;
-}
-
-.app-shell {
   display: flex;
-  min-height: 100vh;
 }
 
-.sidebar {
+.app-shell .sidebar {
   width: 220px;
   background: var(--bg-card);
   border-right: 1px solid var(--border-color);
@@ -58,25 +49,25 @@ body {
   height: 100vh;
 }
 
-.logo {
+.app-shell .logo {
   font-weight: 700;
   font-size: 1.1rem;
   color: var(--accent);
   margin-bottom: 0.25rem;
 }
 
-.logo-sub {
+.app-shell .logo-sub {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-bottom: 2rem;
 }
 
-.nav-menu {
+.app-shell .nav-menu {
   list-style: none;
   flex: 1;
 }
 
-.nav-item {
+.app-shell .nav-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -89,18 +80,18 @@ body {
   transition: all 0.2s;
 }
 
-.nav-item:hover {
+.app-shell .nav-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 
-.nav-item.active {
+.app-shell .nav-item.active {
   background: var(--accent-bg);
   color: var(--accent);
   font-weight: 500;
 }
 
-.nav-icon {
+.app-shell .nav-icon {
   width: 18px;
   height: 18px;
   stroke: currentColor;
@@ -108,7 +99,7 @@ body {
   fill: none;
 }
 
-.theme-toggle {
+.app-shell .theme-toggle {
   background: var(--bg-hover);
   border: none;
   padding: 0.75rem;
@@ -121,11 +112,11 @@ body {
   margin-top: auto;
 }
 
-.theme-toggle:hover {
+.app-shell .theme-toggle:hover {
   background: var(--border-color);
 }
 
-.theme-toggle svg {
+.app-shell .theme-toggle svg {
   width: 18px;
   height: 18px;
   stroke: currentColor;
