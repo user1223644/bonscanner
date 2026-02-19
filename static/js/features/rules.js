@@ -6,32 +6,66 @@ const ui = window.BonscannerUI;
 const api = window.API;
 const dom = window.DomUtils;
 
+function escapeText(value) {
+  if (dom?.escapeHtml) {
+    return dom.escapeHtml(value);
+  }
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return ch;
+    }
+  });
+}
+
 async function loadCategories() {
+  const select = document.getElementById("rule-category");
+  if (!api) {
+    if (select) select.innerHTML = "";
+    return;
+  }
   try {
     categoriesCache = await api.get("/categories");
+    renderRuleCategoryOptions(categoriesCache);
   } catch (e) {
     categoriesCache = [];
+    if (select) select.innerHTML = "";
   }
-  renderRuleCategoryOptions(categoriesCache);
 }
 
 function renderRuleCategoryOptions(categories) {
   const select = document.getElementById("rule-category");
   if (!select) return;
   select.innerHTML = (categories || [])
-    .map((cat) => `<option value="${cat.id}">${dom?.escapeHtml(cat.name) || ""}</option>`)
+    .map((cat) => `<option value="${cat.id}">${escapeText(cat.name)}</option>`)
     .join("");
 }
 
 async function loadRules() {
+  const container = document.getElementById("rules-rows");
+  if (!api) {
+    if (container) {
+      container.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+    }
+    return;
+  }
   try {
     const rules = await api.get("/category-rules");
     rulesCache = rules || [];
     renderRules(rulesCache);
   } catch (e) {
-    const container = document.getElementById("rules-rows");
     if (container) {
-      container.innerHTML = '<div class="empty-hint">Keine Regeln gefunden</div>';
+      container.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
     }
   }
 }
@@ -69,7 +103,7 @@ function buildCategorySelect(selectedId) {
   return (categoriesCache || [])
     .map((cat) => {
       const selected = String(cat.id) === String(selectedId) ? "selected" : "";
-      return `<option value="${cat.id}" ${selected}>${dom?.escapeHtml(cat.name) || ""}</option>`;
+      return `<option value="${cat.id}" ${selected}>${escapeText(cat.name)}</option>`;
     })
     .join("");
 }
@@ -111,7 +145,7 @@ function renderRules(rules) {
           <select class="rule-select rule-category">${buildCategorySelect(rule.category_id)}</select>
           <select class="rule-select rule-type">${buildRuleTypeOptions(rule.rule_type)}</select>
           <select class="rule-select rule-match">${buildMatchOptions(rule.match_type)}</select>
-          <input type="text" class="rule-input rule-pattern" value="${dom?.escapeHtml(rule.pattern) || ""}" />
+          <input type="text" class="rule-input rule-pattern" value="${escapeText(rule.pattern)}" />
           <input
             type="text"
             inputmode="numeric"

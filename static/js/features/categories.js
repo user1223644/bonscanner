@@ -5,6 +5,28 @@ const ui = window.BonscannerUI;
 const api = window.API;
 const dom = window.DomUtils;
 
+function escapeText(value) {
+  if (dom?.escapeHtml) {
+    return dom.escapeHtml(value);
+  }
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return ch;
+    }
+  });
+}
+
 function getPalette() {
   return typeof CATEGORY_COLORS !== "undefined" && CATEGORY_COLORS.length
     ? CATEGORY_COLORS
@@ -26,12 +48,22 @@ function ensureUI() {
 }
 
 async function loadCategories() {
+  const container = document.getElementById("categories-list");
+  if (!api) {
+    if (container) {
+      container.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+    }
+    return;
+  }
   try {
     categoriesCache = await api.get("/categories");
+    renderCategories(categoriesCache);
   } catch (e) {
     categoriesCache = [];
+    if (container) {
+      container.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+    }
   }
-  renderCategories(categoriesCache);
 }
 
 function renderCategories(categories) {
@@ -58,7 +90,7 @@ function renderCategories(categories) {
       return `
         <div class="category-row" data-id="${cat.id}">
           <input type="color" class="category-color-input" value="${color}" />
-          <input type="text" class="category-name-input" value="${dom?.escapeHtml(cat.name) || ""}" />
+          <input type="text" class="category-name-input" value="${escapeText(cat.name)}" />
           <span class="category-usage">${cat.usage_count || 0}</span>
           <div class="category-actions">
             <button
@@ -169,7 +201,7 @@ function setupHandlers() {
   const nameInput = document.getElementById("new-category-name");
   const colorInput = document.getElementById("new-category-color");
 
-  const modalController = uiHelpers?.bindModal({
+  modalController = uiHelpers?.bindModal({
     openButton: openBtn,
     modal,
     onClose: () => {
