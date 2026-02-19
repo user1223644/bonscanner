@@ -6,26 +6,27 @@ Flask backend for OCR-based receipt processing.
 import csv
 import io
 import json
+import os
 from flask import Flask, request, jsonify, make_response, send_file, after_this_request
 from flask_cors import CORS
 
 from database import (
     init_db, save_receipt, get_all_receipts, get_receipt_stats,
     get_all_labels, update_receipt_labels, add_receipt_item,
-    delete_receipt_item, get_receipt_items, get_categories,
-    create_category, update_category, delete_category,
-    get_category_rules, create_category_rule, update_category_rule,
-    delete_category_rule, seed_default_category_rules,
+    delete_receipt_item, get_receipt_items, seed_default_category_rules,
     export_backup_data, create_db_backup_file, import_backup_data,
     set_receipt_item_categories
 )
 from extractor import extract_receipt_data
 from server.services.categorization import apply_auto_categorization
+from server.services.default_rules import DEFAULT_CATEGORY_RULES
 from server.services.ocr import ocr_image_file
 from server.utils.labels import parse_labels_from_request
+from server.routes.categories import categories_bp
 
 app = Flask(__name__)
 CORS(app)
+app.register_blueprint(categories_bp)
 
 
 
@@ -173,95 +174,6 @@ def list_labels():
     return jsonify(get_all_labels())
 
 
-@app.route('/categories', methods=['GET'])
-def list_categories():
-    """Get all categories."""
-    return jsonify(get_categories())
-
-
-@app.route('/categories', methods=['POST'])
-def create_category_route():
-    """Create a category."""
-    data = request.get_json() or {}
-    name = data.get('name', '').strip()
-    color = data.get('color')
-    try:
-        category_id = create_category(name, color=color)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify({'id': category_id, 'name': name, 'color': color})
-
-
-@app.route('/categories/<int:category_id>', methods=['PATCH'])
-def update_category_route(category_id):
-    """Update a category."""
-    data = request.get_json() or {}
-    name = data.get('name')
-    color = data.get('color')
-    try:
-        update_category(category_id, name=name, color=color)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify({'success': True})
-
-
-@app.route('/categories/<int:category_id>', methods=['DELETE'])
-def delete_category_route(category_id):
-    """Delete a category (soft delete)."""
-    try:
-        delete_category(category_id)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify({'success': True})
-
-
-@app.route('/category-rules', methods=['GET'])
-def list_category_rules():
-    """Get category rules."""
-    rule_type = request.args.get('rule_type')
-    return jsonify(get_category_rules(rule_type=rule_type))
-
-
-@app.route('/category-rules', methods=['POST'])
-def create_category_rule_route():
-    """Create a category rule."""
-    data = request.get_json() or {}
-    try:
-        rule_id = create_category_rule(
-            category_id=data.get('category_id'),
-            rule_type=data.get('rule_type'),
-            pattern=data.get('pattern'),
-            match_type=data.get('match_type') or 'contains',
-            priority=data.get('priority') or 100,
-            name=data.get('name'),
-            is_active=data.get('is_active', True),
-        )
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify({'id': rule_id})
-
-
-@app.route('/category-rules/<int:rule_id>', methods=['PATCH'])
-def update_category_rule_route(rule_id):
-    """Update a category rule."""
-    data = request.get_json() or {}
-    try:
-        update_category_rule(rule_id, data)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify({'success': True})
-
-
-@app.route('/category-rules/<int:rule_id>', methods=['DELETE'])
-def delete_category_rule_route(rule_id):
-    """Delete a category rule."""
-    try:
-        delete_category_rule(rule_id)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify({'success': True})
-
-
 @app.route('/stats', methods=['GET'])
 def receipt_stats():
     """Get receipt statistics."""
@@ -407,7 +319,7 @@ def health_check():
 
 # Initialize database on startup
 init_db()
-seed_default_category_rules(CATEGORIZATION_RULES)
+seed_default_category_rules(DEFAULT_CATEGORY_RULES)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
