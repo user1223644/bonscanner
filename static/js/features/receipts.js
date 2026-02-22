@@ -7,6 +7,7 @@ const AUTO_REFRESH_MS = 25000;
 let refreshTimer = null;
 let isRefreshing = false;
 let activeEdits = 0;
+const ui = window.BonscannerUI;
 
 function sanitizeNumericInput(value) {
   if (value === null || value === undefined) return "";
@@ -106,6 +107,22 @@ function formatDate(dateStr) {
   
   // Pad with zeros and return DD.MM.YYYY
   return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`;
+}
+
+function formatTotalDisplay(value) {
+  if (value === "" || value === null || value === undefined) return "-";
+  const cleaned = normalizeDecimal(String(value));
+  const parsed = Number.parseFloat(cleaned);
+  if (!Number.isFinite(parsed)) return value;
+  return `${parsed.toFixed(2)} €`;
+}
+
+function showError(message) {
+  if (ui?.showToast) {
+    ui.showToast(message, { tone: "error" });
+  } else {
+    alert(message);
+  }
 }
 
 async function loadReceipts() {
@@ -552,11 +569,21 @@ function renderCategories(id, labels) {
   );
 }
 
+function updateLabelsUI(row, labels, cell) {
+  if (!row) return;
+  row.dataset.labels = JSON.stringify(labels || []);
+  const targetCell = cell || row.querySelector("td:nth-child(4)");
+  if (targetCell) {
+    targetCell.innerHTML = renderCategories(row.dataset.id, labels || []);
+  }
+}
+
 function editField(id, field, el) {
   const cell = el.closest("td") || el.parentElement;
   if (!cell || cell.querySelector("input.edit-input")) return;
 
   const currentValue = el.textContent.replace(" €", "").trim();
+  const previousText = el.textContent;
   const input = document.createElement("input");
   input.className = "edit-input";
   if (field === "total") {
@@ -609,14 +636,19 @@ function editField(id, field, el) {
   const save = async () => {
     if (didCleanup || isSaving) return;
     isSaving = true;
-    const payload = { [field]: input.value.trim() || null };
+    const rawValue = input.value.trim();
+    const payload = { [field]: rawValue || null };
+    let nextText = rawValue || "-";
+    if (field === "date" && rawValue) nextText = formatDate(rawValue);
+    if (field === "total") nextText = formatTotalDisplay(rawValue);
+    el.textContent = nextText;
+    cleanup();
     try {
       await api.patch(`/receipts/${id}`, payload);
     } catch (e) {
-      console.error(e);
+      el.textContent = previousText;
+      showError("Fehler beim Speichern");
     }
-    cleanup();
-    loadReceipts();
   };
 
   input.addEventListener("keydown", (e) => {
@@ -632,6 +664,7 @@ function editField(id, field, el) {
 function addCategory(id, el) {
   const row = document.querySelector(`tr[data-id="${id}"]`);
   const labelsData = row ? JSON.parse(row.dataset.labels || "[]") : [];
+  const cell = el.closest("td");
 
   const input = document.createElement("input");
   input.className = "edit-input";
@@ -648,17 +681,23 @@ function addCategory(id, el) {
     finished = true;
 
     const value = input.value.trim();
+    let allLabels = labelsData;
     if (value) {
       const newLabels = value
         .split(",")
         .map((l) => l.trim())
         .filter((l) => l);
-
-      const allLabels = [...new Set([...labelsData, ...newLabels])];
-
-      await api.patch(`/receipts/${id}/labels`, { labels: allLabels });
+      allLabels = [...new Set([...labelsData, ...newLabels])];
     }
-    loadReceipts();
+
+    updateLabelsUI(row, allLabels, cell);
+
+    try {
+      await api.patch(`/receipts/${id}/labels`, { labels: allLabels });
+    } catch (e) {
+      updateLabelsUI(row, labelsData, cell);
+      showError("Fehler beim Speichern der Labels");
+    }
     endEdit();
   };
 
@@ -666,7 +705,7 @@ function addCategory(id, el) {
     if (e.key === "Enter") save();
     if (e.key === "Escape") {
       finished = true;
-      loadReceipts();
+      updateLabelsUI(row, labelsData, cell);
       endEdit();
     }
   });
@@ -677,12 +716,16 @@ async function deleteLabel(id, label, event) {
   event.stopPropagation();
   const row = document.querySelector(`tr[data-id="${id}"]`);
   const labelsData = row ? JSON.parse(row.dataset.labels || "[]") : [];
-
+  const cell = event.currentTarget.closest("td");
   const newLabels = labelsData.filter((l) => l !== label);
+  updateLabelsUI(row, newLabels, cell);
 
-  await api.patch(`/receipts/${id}/labels`, { labels: newLabels });
-
-  loadReceipts();
+  try {
+    await api.patch(`/receipts/${id}/labels`, { labels: newLabels });
+  } catch (e) {
+    updateLabelsUI(row, labelsData, cell);
+    showError("Fehler beim Entfernen des Labels");
+  }
 }
 
 loadReceipts();
