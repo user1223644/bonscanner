@@ -244,6 +244,16 @@ async function handleFile(file) {
     }
     if (data.error) throw new Error(data.error);
     displayResults(data);
+
+    const manualLabels = selectedLabels.filter((label) => label);
+    if (data.id && manualLabels.length) {
+      try {
+        await api.patch(`/receipts/${data.id}/labels`, { labels: manualLabels });
+      } catch (e) {
+        showError("Manuelle Labels konnten nicht gespeichert werden");
+      }
+    }
+
     window.refreshRecentReceipts?.();
   } catch (error) {
     results.innerHTML = `<div class="error">Fehler: ${error.message}</div>`;
