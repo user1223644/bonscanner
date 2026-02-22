@@ -3,6 +3,10 @@ let currentPage = 1;
 const pageSize = 25;
 let itemCache = {};
 const api = window.API;
+const AUTO_REFRESH_MS = 25000;
+let refreshTimer = null;
+let isRefreshing = false;
+let activeEdits = 0;
 
 function sanitizeNumericInput(value) {
   if (value === null || value === undefined) return "";
@@ -55,6 +59,18 @@ function bindNumericInputs(root = document) {
     .forEach((input) => bindNumericInput(input));
 }
 
+function beginEdit() {
+  activeEdits += 1;
+}
+
+function endEdit() {
+  activeEdits = Math.max(0, activeEdits - 1);
+}
+
+function hasActiveEdits() {
+  return activeEdits > 0;
+}
+
 function formatDate(dateStr) {
   if (!dateStr || dateStr === '-') return '-';
   
@@ -93,6 +109,8 @@ function formatDate(dateStr) {
 }
 
 async function loadReceipts() {
+  if (isRefreshing) return;
+  isRefreshing = true;
   try {
     const categories = await api.get("/categories");
     const palette = CATEGORY_COLORS.length ? CATEGORY_COLORS : ["#f5a623"];
@@ -216,6 +234,8 @@ async function loadReceipts() {
     document.getElementById("receipts-body").innerHTML =
       '<tr><td colspan="6" class="empty-state">Fehler beim Laden</td></tr>';
     updatePagination(1, 0);
+  } finally {
+    isRefreshing = false;
   }
 }
 
@@ -268,6 +288,22 @@ document.addEventListener('DOMContentLoaded', () => {
     currentPage += 1;
     loadReceipts();
   });
+  scheduleAutoRefresh();
+});
+
+function scheduleAutoRefresh() {
+  if (refreshTimer) return;
+  refreshTimer = window.setInterval(() => {
+    if (document.hidden) return;
+    if (hasActiveEdits()) return;
+    loadReceipts();
+  }, AUTO_REFRESH_MS);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !hasActiveEdits()) {
+    loadReceipts();
+  }
 });
 
 function updatePagination(totalPages, totalCount) {
@@ -557,6 +593,7 @@ function editField(id, field, el) {
   cell.appendChild(input);
   input.focus();
   input.select();
+  beginEdit();
 
   let didCleanup = false;
   let isSaving = false;
@@ -566,6 +603,7 @@ function editField(id, field, el) {
     input.remove();
     el.style.visibility = "";
     cell.style.position = previousPosition;
+    endEdit();
   };
 
   const save = async () => {
@@ -601,6 +639,7 @@ function addCategory(id, el) {
   input.placeholder = "Labels (kommagetrennt)";
   el.replaceWith(input);
   input.focus();
+  beginEdit();
 
   let finished = false;
 
@@ -620,6 +659,7 @@ function addCategory(id, el) {
       await api.patch(`/receipts/${id}/labels`, { labels: allLabels });
     }
     loadReceipts();
+    endEdit();
   };
 
   input.addEventListener("keydown", (e) => {
@@ -627,6 +667,7 @@ function addCategory(id, el) {
     if (e.key === "Escape") {
       finished = true;
       loadReceipts();
+      endEdit();
     }
   });
   input.addEventListener("blur", save);
