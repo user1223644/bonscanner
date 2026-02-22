@@ -151,6 +151,84 @@
         font-weight: 600;
       }
 
+      .items-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+      }
+
+      .items-header h3 {
+        margin-bottom: 0;
+      }
+
+      .add-item-btn {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 0.35rem 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+
+      .add-item-btn:hover {
+        opacity: 0.9;
+      }
+
+      .add-item-form {
+        background: var(--bg-card);
+        padding: 1rem;
+        border-radius: 6px;
+        margin-top: 0.5rem;
+        border: 1px solid var(--border-color);
+      }
+
+      .item-input {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        padding: 0.5rem;
+        border-radius: 4px;
+        margin-right: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+      }
+
+      .item-input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      .save-btn,
+      .cancel-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+
+      .save-btn {
+        background: var(--accent);
+        color: white;
+        margin-right: 0.5rem;
+      }
+
+      .save-btn:hover {
+        opacity: 0.9;
+      }
+
+      .cancel-btn {
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+      }
+
+      .cancel-btn:hover {
+        background: var(--border-color);
+      }
+
       .raw-text {
         background: var(--bg-hover);
         padding: 1rem;

@@ -284,8 +284,17 @@ function displayResults(data) {
   if (receiptId) {
     itemsHtml = `
       <div class="result-section">
-        <h3>Artikel</h3>
+        <div class="items-header">
+          <h3>Artikel</h3>
+          <button class="add-item-btn" id="upload-add-item-btn">+ Artikel</button>
+        </div>
         <div id="upload-items">Lade Artikel...</div>
+        <div id="upload-add-item-form" class="add-item-form" style="display: none;">
+          <input type="text" id="upload-item-name" class="item-input" placeholder="Artikelname" />
+          <input type="text" id="upload-item-price" class="item-input" placeholder="Preis" />
+          <button class="save-btn" id="upload-item-save">Speichern</button>
+          <button class="cancel-btn" id="upload-item-cancel">Abbrechen</button>
+        </div>
       </div>
     `;
   } else if (data.items?.length) {
@@ -316,6 +325,7 @@ function displayResults(data) {
 
   if (receiptId) {
     bindResultEditors(receiptId);
+    bindUploadAddItemControls();
     loadUploadItems(receiptId);
   }
 }
@@ -437,7 +447,6 @@ function renderUploadItems(items) {
     </ul>
   `;
   bindUploadItemEditors();
-  updateTotalFromItems(items);
 }
 
 async function loadUploadItems(receiptId) {
@@ -458,6 +467,66 @@ function bindUploadItemEditors() {
   fields.forEach((field) => {
     field.addEventListener("click", () => startItemInlineEdit(field));
   });
+}
+
+function bindUploadAddItemControls() {
+  const addBtn = document.getElementById("upload-add-item-btn");
+  const form = document.getElementById("upload-add-item-form");
+  const nameInput = document.getElementById("upload-item-name");
+  const priceInput = document.getElementById("upload-item-price");
+  const saveBtn = document.getElementById("upload-item-save");
+  const cancelBtn = document.getElementById("upload-item-cancel");
+
+  if (!addBtn || !form || !nameInput || !priceInput || !saveBtn || !cancelBtn) return;
+
+  addBtn.onclick = () => {
+    form.style.display = "block";
+    nameInput.focus();
+  };
+
+  const resetForm = () => {
+    form.style.display = "none";
+    nameInput.value = "";
+    priceInput.value = "";
+  };
+
+  cancelBtn.onclick = resetForm;
+
+  saveBtn.onclick = async () => {
+    if (!currentUploadReceiptId) return;
+    const name = nameInput.value.trim();
+    const priceRaw = priceInput.value.trim();
+    if (!name) {
+      showError("Bitte Artikelname eingeben");
+      return;
+    }
+    if (!priceRaw) {
+      showError("Bitte Preis eingeben");
+      return;
+    }
+    const normalized = normalizeDecimal(priceRaw);
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed)) {
+      showError("Preis ist ungültig");
+      return;
+    }
+
+    try {
+      const response = await api.post(`/receipts/${currentUploadReceiptId}/items`, {
+        name,
+        price: normalized,
+      });
+      resetForm();
+      if (response?.items) {
+        uploadItemsCache = response.items;
+        renderUploadItems(uploadItemsCache);
+      } else {
+        loadUploadItems(currentUploadReceiptId);
+      }
+    } catch (e) {
+      showError("Fehler beim Hinzufügen des Artikels");
+    }
+  };
 }
 
 function startItemInlineEdit(span) {
@@ -532,19 +601,4 @@ function startItemInlineEdit(span) {
     if (e.key === "Escape") cleanup(previousText);
   });
   input.addEventListener("blur", save);
-}
-
-function updateTotalFromItems(items) {
-  if (!Array.isArray(items) || items.length === 0) return;
-  const totalField = results.querySelector('.result-field[data-field="total"]');
-  if (!totalField) return;
-  const sum = items.reduce((acc, item) => {
-    const raw = item.line_total ?? item.price ?? "";
-    const value = Number.parseFloat(normalizeDecimal(raw));
-    return Number.isFinite(value) ? acc + value : acc;
-  }, 0);
-  if (Number.isFinite(sum) && sum > 0) {
-    totalField.textContent = `${sum.toFixed(2)} €`;
-    totalField.dataset.raw = sum.toFixed(2);
-  }
 }
