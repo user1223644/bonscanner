@@ -1,4 +1,13 @@
-const DEFAULT_API_URL = "http://localhost:5000";
+const locationHost =
+  window.location && window.location.hostname ? window.location.hostname : "";
+const isIpv6Host = locationHost.includes(":");
+const useLoopbackFallback =
+  !locationHost ||
+  locationHost === "localhost" ||
+  locationHost === "0.0.0.0" ||
+  isIpv6Host;
+const defaultApiHost = useLoopbackFallback ? "127.0.0.1" : locationHost;
+const DEFAULT_API_URL = `http://${defaultApiHost}:5000`;
 const locationOrigin =
   window.location && window.location.origin && window.location.origin !== "null"
     ? window.location.origin
