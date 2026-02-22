@@ -35,16 +35,20 @@ def upload_receipt():
         result = extract_receipt_data(text)
 
         store_name = result.get("store_name", "")
-        labels = apply_auto_categorization(
-            store_name,
-            labels,
-            raw_text=result.get("raw_text"),
-            payment_method=result.get("payment_method"),
-            items=result.get("items"),
-        )
+        if labels:
+            final_labels = labels
+        else:
+            final_labels = apply_auto_categorization(
+                store_name,
+                labels,
+                raw_text=result.get("raw_text"),
+                payment_method=result.get("payment_method"),
+                items=result.get("items"),
+            )
 
-        result["labels"] = labels
-        save_receipt(result, labels=labels)
+        result["labels"] = final_labels
+        receipt_id = save_receipt(result, labels=final_labels)
+        result["id"] = receipt_id
         return jsonify(result)
 
     except Exception as exc:

@@ -653,6 +653,7 @@ def save_receipt(result, labels=None):
         sync_receipt_categories(conn, receipt_id, labels, source=None)
         
         conn.commit()
+        return receipt_id
 
 
 def update_receipt_labels(receipt_id, labels):
