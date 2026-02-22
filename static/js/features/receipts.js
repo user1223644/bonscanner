@@ -364,18 +364,25 @@ function renderItemsDetailEditable(receiptId, items) {
       .map(
         (item) => {
           const hasId = item.id !== undefined && item.id !== null;
+          const nameHtml = hasId
+            ? `<span class="editable" onclick="editItemField(${receiptId}, ${item.id}, 'name', this)">${item.name || "-"}</span>`
+            : `${item.name || "-"}`;
+          const priceLabel = formatItemPriceDisplay(item);
+          const priceHtml = hasId
+            ? `<span class="editable" onclick="editItemField(${receiptId}, ${item.id}, 'line_total', this)">${priceLabel}</span>`
+            : priceLabel;
           const actionButtons = hasId
             ? `<button class="item-category-btn" onclick="editItemCategories(${receiptId}, ${item.id})" title="Kategorien">Kategorien</button>
                <button class="delete-item-btn" onclick="deleteItem(${receiptId}, ${item.id})" title="Löschen">×</button>`
             : '';
           return `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <div style="font-weight: 500;">${item.name || "-"}</div>
+              <div style="font-weight: 500;">${nameHtml}</div>
               ${formatItemMeta(item)}
               ${renderItemCategories(item)}
             </div>
             <div>
-              <span style="color: var(--text-muted); margin-right: 1rem;">${item.price || ""}</span>
+              <span style="color: var(--text-muted); margin-right: 1rem;">${priceHtml}</span>
               ${actionButtons}
             </div>
           </div>`;
@@ -384,6 +391,15 @@ function renderItemsDetailEditable(receiptId, items) {
       .join("") +
     "</div>"
   );
+}
+
+function formatItemPriceDisplay(item) {
+  if (!item) return "-";
+  const raw = item.line_total ?? item.price ?? "";
+  if (raw === "" || raw === null || raw === undefined) return "-";
+  const parsed = Number.parseFloat(normalizeDecimal(String(raw)));
+  if (!Number.isFinite(parsed)) return String(raw);
+  return `${parsed.toFixed(2)} €`;
 }
 
 function formatItemMeta(item) {
@@ -484,6 +500,87 @@ async function deleteItem(receiptId, itemId) {
   } catch (e) {
     alert("Fehler beim Löschen des Artikels");
   }
+}
+
+async function editItemField(receiptId, itemId, field, el) {
+  const container = el.closest("div") || el.parentElement;
+  if (!container || container.querySelector("input.edit-input")) return;
+
+  const previousText = el.textContent;
+  const input = document.createElement("input");
+  input.className = "edit-input";
+
+  if (field === "line_total") {
+    input.type = "text";
+    input.dataset.numeric = "true";
+    bindNumericInput(input);
+  }
+
+  input.value = previousText.replace("€", "").trim();
+
+  el.style.display = "none";
+  container.style.position = "relative";
+  container.appendChild(input);
+  input.focus();
+  input.select();
+  beginEdit();
+
+  let didCleanup = false;
+  let isSaving = false;
+
+  const cleanup = () => {
+    if (didCleanup) return;
+    didCleanup = true;
+    input.remove();
+    el.style.display = "";
+    container.style.position = "";
+    endEdit();
+  };
+
+  const save = async () => {
+    if (didCleanup || isSaving) return;
+    isSaving = true;
+    const rawValue = input.value.trim();
+    const payload =
+      field === "line_total"
+        ? { line_total: rawValue || null }
+        : { name: rawValue || null };
+
+    let nextText = rawValue || "-";
+    if (field === "line_total") {
+      const parsed = Number.parseFloat(normalizeDecimal(rawValue));
+      if (Number.isFinite(parsed)) {
+        nextText = `${parsed.toFixed(2)} €`;
+      }
+    }
+
+    el.textContent = nextText;
+    cleanup();
+
+    try {
+      const response = await api.patch(
+        `/receipts/${receiptId}/items/${itemId}`,
+        payload,
+      );
+      if (response?.items) {
+        response.items.forEach((item) => {
+          if (item.id) itemCache[item.id] = { ...item, receipt_id: receiptId };
+        });
+      }
+    } catch (e) {
+      el.textContent = previousText;
+      showError("Fehler beim Speichern des Artikels");
+    }
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") {
+      cleanup();
+      el.textContent = previousText;
+    }
+  });
+  input.addEventListener("blur", save);
 }
 
 function parseCategoryAllocations(value) {
