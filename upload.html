@@ -102,6 +102,7 @@
         border-radius: 4px;
         display: block;
         margin: 0 auto;
+        cursor: zoom-in;
       }
 
       .results {
@@ -593,6 +594,47 @@
         opacity: 1;
       }
 
+      .image-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 120;
+        padding: 1.5rem;
+      }
+
+      .image-modal.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .image-modal img {
+        max-width: min(92vw, 1000px);
+        max-height: 85vh;
+        border-radius: 12px;
+        background: var(--bg-card);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      }
+
+      .image-modal-close {
+        position: absolute;
+        top: 1.5rem;
+        right: 1.5rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        font-size: 1.5rem;
+        cursor: pointer;
+      }
+
       .cell-muted {
         color: var(--text-muted);
       }
@@ -751,6 +793,11 @@
         </aside>
       </div>
     </main>
+
+    <div id="image-modal" class="image-modal" aria-hidden="true">
+      <button class="image-modal-close" id="image-modal-close" aria-label="Schließen">×</button>
+      <img id="image-modal-img" src="" alt="Beleg vergrößert" />
+    </div>
 
     <script src="static/js/core/constants.js" defer></script>
     <script src="static/js/core/api.js" defer></script>
