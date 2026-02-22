@@ -4,6 +4,7 @@ let pendingFile = null;
 
 const api = window.API;
 const apiBase = api?.baseUrl || window.API_URL || "http://localhost:5000";
+const ui = window.BonscannerUI;
 
 const uploadArea = document.getElementById("upload-area");
 const fileInput = document.getElementById("file-input");
@@ -275,6 +276,14 @@ function displayResults(data) {
 
 loadLabels();
 
+function showError(message) {
+  if (ui?.showToast) {
+    ui.showToast(message, { tone: "error" });
+  } else {
+    alert(message);
+  }
+}
+
 function bindResultEditors(receiptId) {
   const fields = results.querySelectorAll(".result-field.editable");
   fields.forEach((field) => {
@@ -325,16 +334,19 @@ function startInlineEdit(span, receiptId) {
     if (didCleanup || isSaving) return;
     isSaving = true;
     const newValue = input.value.trim();
+    const previousText = span.textContent;
+    const previousRaw = span.dataset.raw || "";
+    span.dataset.raw = newValue;
+    updateDisplay(newValue);
+    cleanup();
     try {
       await api.patch(`/receipts/${receiptId}`, {
         [field]: newValue || null,
       });
-      span.dataset.raw = newValue;
-      updateDisplay(newValue);
-      cleanup();
     } catch (e) {
-      cleanup(span.dataset.raw || "");
-      alert("Fehler beim Speichern");
+      span.dataset.raw = previousRaw;
+      span.textContent = previousText;
+      showError("Fehler beim Speichern");
     }
   };
 
