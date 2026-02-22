@@ -2,6 +2,9 @@
   let labelColorMap = {};
   const dom = window.DomUtils;
   const api = window.API;
+  const AUTO_REFRESH_MS = 20000;
+  let refreshTimer = null;
+  let isRefreshing = false;
 
   function formatDate(dateStr) {
     if (!dateStr || dateStr === "-") return "-";
@@ -226,6 +229,8 @@
   async function refreshRecentReceipts() {
     const tbody = document.getElementById("recent-receipts-body");
     if (!tbody) return;
+    if (isRefreshing) return;
+    isRefreshing = true;
 
     const hasRows = Boolean(tbody.querySelector("tr[data-id]"));
     if (!hasRows) {
@@ -274,12 +279,29 @@
         '<tr><td colspan="4" class="recent-empty">Fehler beim Laden</td></tr>';
     } finally {
       tbody.classList.remove("is-refreshing");
+      isRefreshing = false;
     }
   }
+
+  function scheduleAutoRefresh() {
+    if (refreshTimer) return;
+    refreshTimer = window.setInterval(() => {
+      if (document.hidden) return;
+      if (!document.getElementById("recent-receipts-body")) return;
+      refreshRecentReceipts();
+    }, AUTO_REFRESH_MS);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshRecentReceipts();
+  });
 
   window.refreshRecentReceipts = refreshRecentReceipts;
   window.editField = editField;
   window.addCategory = addCategory;
   window.deleteLabel = deleteLabel;
-  document.addEventListener("DOMContentLoaded", refreshRecentReceipts);
+  document.addEventListener("DOMContentLoaded", () => {
+    refreshRecentReceipts();
+    scheduleAutoRefresh();
+  });
 })();
