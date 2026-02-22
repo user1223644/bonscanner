@@ -138,7 +138,7 @@ def patch_receipt_labels(receipt_id):
         return jsonify({"error": "No labels provided"}), 400
 
     update_receipt_labels(receipt_id, labels)
-    receipts = get_all_receipts()[0]
+    receipts = get_all_receipts()
     receipt = next((r for r in receipts if r["id"] == receipt_id), None)
     if not receipt:
         return jsonify({"error": "Receipt not found"}), 404
