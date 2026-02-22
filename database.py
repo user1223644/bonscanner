@@ -1487,17 +1487,19 @@ def add_receipt_item(receipt_id, name, price):
     line_total = parse_total_to_float(price)
     
     with get_db_connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO receipt_items (receipt_id, name, quantity, line_total)
             VALUES (?, ?, ?, ?)
             """,
             (receipt_id, name, 1.0, line_total)
         )
+        item_id = cursor.lastrowid
         conn.commit()
     
     # Recalculate total
     recalculate_receipt_total(receipt_id)
+    return item_id
 
 
 def delete_receipt_item(item_id):
@@ -1520,6 +1522,63 @@ def delete_receipt_item(item_id):
     # Recalculate total
     recalculate_receipt_total(receipt_id)
     return True
+
+
+def update_receipt_item(item_id, updates):
+    """Update editable fields for a receipt item."""
+    if not item_id:
+        raise ValueError("Item id required")
+    updates = updates or {}
+    allowed_fields = {
+        "name",
+        "quantity",
+        "unit_price",
+        "line_total",
+        "unit",
+        "is_discount",
+        "tax_rate",
+        "tax_amount",
+    }
+
+    fields = []
+    values = []
+
+    for field, value in updates.items():
+        if field not in allowed_fields:
+            continue
+        if field in ("line_total", "unit_price"):
+            values.append(parse_total_to_float(value))
+            fields.append(f"{field} = ?")
+        elif field == "is_discount":
+            if value is None:
+                values.append(None)
+            else:
+                values.append(1 if bool(value) else 0)
+            fields.append("is_discount = ?")
+        else:
+            values.append(value)
+            fields.append(f"{field} = ?")
+
+    if not fields:
+        return None
+
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT receipt_id FROM receipt_items WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+        if not row:
+            raise ValueError("Item not found")
+        receipt_id = row["receipt_id"]
+        values.append(item_id)
+        conn.execute(
+            f"UPDATE receipt_items SET {', '.join(fields)} WHERE id = ?",
+            values,
+        )
+        conn.commit()
+
+    recalculate_receipt_total(receipt_id)
+    return receipt_id
 
 
 def get_receipt_items(receipt_id):

@@ -7,6 +7,7 @@ from database import (
     get_receipt_items,
     save_receipt,
     set_receipt_item_categories,
+    update_receipt_item,
     update_receipt,
     update_receipt_labels,
 )
@@ -196,6 +197,22 @@ def delete_receipt_item_route(receipt_id, item_id):
     success = delete_receipt_item(item_id)
     if not success:
         return jsonify({"error": "Item not found"}), 404
+
+    items = get_receipt_items(receipt_id)
+    return jsonify({"success": True, "items": items})
+
+
+@receipts_bp.route("/receipts/<int:receipt_id>/items/<int:item_id>", methods=["PATCH"])
+def update_receipt_item_route(receipt_id, item_id):
+    """Update an item for a receipt."""
+    data = request.get_json() or {}
+    try:
+        updated_receipt_id = update_receipt_item(item_id, data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if updated_receipt_id != receipt_id:
+        return jsonify({"error": "Item does not belong to receipt"}), 404
 
     items = get_receipt_items(receipt_id)
     return jsonify({"success": True, "items": items})
