@@ -215,6 +215,33 @@ async function handleFile(file) {
 }
 
 function displayResults(data) {
+  const receiptId = data?.id;
+  const formatTotal = (value) => {
+    if (value === null || value === undefined || value === "") return "Nicht gefunden";
+    const parsed = Number.parseFloat(String(value).replace(",", "."));
+    if (!Number.isFinite(parsed)) return String(value);
+    return `${parsed.toFixed(2)} €`;
+  };
+
+  const formatText = (value) => {
+    if (value === null || value === undefined || value === "") return "Nicht gefunden";
+    return String(value);
+  };
+
+  const buildEditableField = (label, field, value, formatter) => {
+    const rawValue = value ?? "";
+    const displayValue = formatter ? formatter(rawValue) : formatText(rawValue);
+    const editableClass = receiptId ? "editable" : "";
+    return `
+      <div class="result-section" data-field-section="${field}">
+        <h3>${label}</h3>
+        <p class="result-value">
+          <span class="result-field ${editableClass}" data-field="${field}" data-raw="${String(rawValue).replace(/"/g, "&quot;")}">${displayValue}</span>
+        </p>
+      </div>
+    `;
+  };
+
   const itemsHtml = data.items?.length
     ? `<div class="result-section"><h3>Artikel</h3><ul class="items-list">${data.items.map((i) => `<li><span>${i.name}</span><span class="item-price">${i.price}</span></li>`).join("")}</ul></div>`
     : "";
@@ -233,13 +260,87 @@ function displayResults(data) {
         <div class="success-subtitle">Beleg wurde erfolgreich gespeichert.</div>
       </div>
     </div>
-    <div class="result-section"><h3>Geschäft</h3><p class="result-value">${data.store_name || "Nicht gefunden"}</p></div>
-    <div class="result-section"><h3>Datum</h3><p class="result-value">${data.date || "Nicht gefunden"}</p></div>
-    <div class="result-section"><h3>Gesamtsumme</h3><p class="result-value">${data.total || "Nicht gefunden"}</p></div>
+    ${buildEditableField("Geschäft", "store_name", data.store_name, formatText)}
+    ${buildEditableField("Datum", "date", data.date, formatText)}
+    ${buildEditableField("Gesamtsumme", "total", data.total, formatTotal)}
     ${itemsHtml}
     ${taxesHtml}
     <div class="result-section"><h3>OCR-Rohtext</h3><pre class="raw-text">${data.raw_text || "Kein Text erkannt"}</pre></div>
   `;
+
+  if (receiptId) {
+    bindResultEditors(receiptId);
+  }
 }
 
 loadLabels();
+
+function bindResultEditors(receiptId) {
+  const fields = results.querySelectorAll(".result-field.editable");
+  fields.forEach((field) => {
+    field.addEventListener("click", () => startInlineEdit(field, receiptId));
+  });
+}
+
+function startInlineEdit(span, receiptId) {
+  if (!span || span.dataset.editing === "true") return;
+  const field = span.dataset.field;
+  const rawValue = span.dataset.raw || "";
+  span.dataset.editing = "true";
+
+  const input = document.createElement("input");
+  input.className = "edit-input";
+  input.type = "text";
+  input.value = rawValue;
+
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let didCleanup = false;
+  let isSaving = false;
+
+  const cleanup = (restoreValue) => {
+    if (didCleanup) return;
+    didCleanup = true;
+    if (restoreValue !== undefined) {
+      span.dataset.raw = restoreValue;
+    }
+    span.dataset.editing = "false";
+    input.replaceWith(span);
+  };
+
+  const updateDisplay = (value) => {
+    if (field === "total") {
+      const parsed = Number.parseFloat(String(value).replace(",", "."));
+      if (Number.isFinite(parsed)) {
+        span.textContent = `${parsed.toFixed(2)} €`;
+        return;
+      }
+    }
+    span.textContent = value ? value : "Nicht gefunden";
+  };
+
+  const save = async () => {
+    if (didCleanup || isSaving) return;
+    isSaving = true;
+    const newValue = input.value.trim();
+    try {
+      await api.patch(`/receipts/${receiptId}`, {
+        [field]: newValue || null,
+      });
+      span.dataset.raw = newValue;
+      updateDisplay(newValue);
+      cleanup();
+    } catch (e) {
+      cleanup(span.dataset.raw || "");
+      alert("Fehler beim Speichern");
+    }
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") cleanup(span.dataset.raw || "");
+  });
+  input.addEventListener("blur", save);
+}
